@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #0d9488;
+        }
+
+        .email-wrapper {
+            background: linear-gradient(135deg, #0d9488 0%, #4338ca 100%);
+            padding: 60px 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card {
+            max-width: 480px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 32px;
+            overflow: hidden;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+            margin: 0 auto;
+        }
+
+        .header {
+            padding: 50px 40px 20px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 42px;
+            font-weight: 800;
+            color: #242424;
+            margin: 0;
+            letter-spacing: -1.5px;
+            line-height: 1;
+        }
+
+        .sparkle {
+            color: #4a90e2;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #888;
+            margin: 12px 0 0;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-weight: 700;
+        }
+
+        .content {
+            padding: 0 40px 50px;
+            text-align: center;
+        }
+
+        h2 {
+            font-size: 28px;
+            font-weight: 800;
+            margin: 0 0 15px;
+            color: #111;
+            letter-spacing: -0.5px;
+        }
+
+        p {
+            font-size: 17px;
+            line-height: 1.6;
+            margin: 0 0 40px;
+            color: #555;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 22px 50px;
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 20px;
+            box-shadow: 0 15px 30px rgba(79, 70, 229, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .footer {
+            padding: 40px 20px;
+            text-align: center;
+            font-size: 14px;
+            color: #ffffff;
+            opacity: 0.9;
+        }
+
+        .footer a {
+            color: #ffffff;
+            font-weight: 700;
+            text-decoration: none;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="email-wrapper">
+        <div style="width: 100%;">
+            <div class="card">
+                <div class="header">
+                    <h1 class="logo">Punch Buddy<span class="sparkle">✨</span></h1>
+                    <p class="subtitle">My Habit Rewards Card</p>
+                </div>
+                <div class="content">
+                    <h2>Time to habit! 🚀</h2>
+                    <p>Tap the button below to log back into your dashboard instantly. Your progress is waiting!</p>
+                    <a href="{{ .ConfirmationURL }}" class="btn">Log In Instantly</a>
+                    <div style="margin-top: 40px; font-size: 13px; color: #aaa;">
+                        Link expires in 1 hour. If you didn't request this, ignore it.
+                    </div>
+                </div>
+            </div>
+            <div class="footer">
+                <p>Built with love ✨ by <a href="mailto:menghuawu@gmail.com">Angela Wu</a></p>
+                <p>&copy; 2025 Punch Buddy. Stay awesome ☀️</p>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

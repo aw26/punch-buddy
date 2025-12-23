@@ -1,0 +1,71 @@
+.app-layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    /* Removed background-color to let body gradient show */
+    color: white;
+    /* Default text to white for contrast on saturated bg */
+}
+
+.app-header {
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.logo {
+    text-decoration: none;
+    color: white;
+}
+
+.logo h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    background: linear-gradient(to right, #ffffff, #e0e7ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.app-content {
+    flex: 1;
+    padding: 1rem;
+}
+
+.app-footer {
+    padding: 2rem 1rem;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.2);
+    /* Semi-transparent dark for footer */
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.app-footer nav {
+    margin-top: 1rem;
+}
+
+.app-footer a {
+    color: white;
+    text-decoration: underline;
+    opacity: 0.8;
+}
+
+.app-footer a:hover {
+    opacity: 1;
+}

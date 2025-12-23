@@ -1,0 +1,106 @@
+.invite-page {
+    min-height: 80vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    color: white;
+}
+
+.invite-card {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 24px;
+    padding: 3rem;
+    max-width: 500px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+}
+
+.invite-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.invite-header h2 {
+    font-size: 2.5rem;
+    font-weight: 900;
+    margin: 0;
+    text-transform: uppercase;
+}
+
+.sparkle {
+    font-size: 2rem;
+    animation: sparkleScale 1.5s infinite alternate;
+}
+
+@keyframes sparkleScale {
+    from {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+
+    to {
+        transform: scale(1.2);
+        opacity: 1;
+    }
+}
+
+.invite-context {
+    font-size: 1.2rem;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+}
+
+.highlighter {
+    color: #ffd700;
+    text-decoration: underline;
+}
+
+.habit-preview {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2rem;
+    border-radius: 16px;
+    margin-bottom: 3rem;
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+}
+
+.habit-title {
+    font-size: 1.8rem;
+    margin: 0 0 0.5rem 0;
+    color: #e0115f;
+    /* Ruby */
+}
+
+.habit-sub {
+    font-size: 0.9rem;
+    opacity: 0.7;
+}
+
+.join-btn {
+    width: 100%;
+    padding: 1.2rem;
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    background: #4a90e2;
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.join-btn:hover {
+    transform: translateY(-2px);
+    background: #357abd;
+}
+
+.invite-tiny {
+    font-size: 0.8rem;
+    opacity: 0.6;
+}

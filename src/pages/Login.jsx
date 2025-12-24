@@ -30,7 +30,7 @@ const Login = () => {
         if (error) {
             setStatus('Error: ' + error.message);
         } else {
-            setStatus('Check your email for the magic link!');
+            setStatus('✅ Magic link sent! Check your email (may take 1-2 minutes). Check spam if you don\'t see it.');
         }
     };
 

@@ -372,9 +372,9 @@ const CreateHabit = () => {
 
                 {
                     formData.mode === 'collab' && (
-                        <div className="form-group" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
+                        <div className="form-group" style={{ borderTop: '1px solid #eee', paddingTop: '1rem' }}>
                             <label>Add Collaborators</label>
-                            <p style={{ fontSize: '0.8rem', color: '#aaa', marginBottom: '0.5rem' }}>
+                            <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.5rem' }}>
                                 Search for friends by <b>email</b> or <b>display name</b> to add them.
                             </p>
 
@@ -406,21 +406,22 @@ const CreateHabit = () => {
                             {/* Pending List */}
                             {pendingCollaborators.length > 0 && (
                                 <div className="pending-collaborators" style={{ marginBottom: '1rem' }}>
-                                    <h4 style={{ fontSize: '0.9rem', marginBottom: '0.5rem', color: '#fff' }}>Will be invited:</h4>
+                                    <h4 style={{ fontSize: '0.9rem', marginBottom: '0.5rem', color: '#444' }}>Will be invited:</h4>
                                     <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                                         {pendingCollaborators.map((c, i) => (
                                             <li key={i} style={{
                                                 padding: '0.6rem',
-                                                background: 'rgba(255,255,255,0.1)',
+                                                background: '#f5f5f5',
                                                 marginBottom: '6px',
                                                 borderRadius: '8px',
                                                 display: 'flex',
                                                 justifyContent: 'space-between',
-                                                alignItems: 'center'
+                                                alignItems: 'center',
+                                                color: '#333'
                                             }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                     <span style={{ fontWeight: 500 }}>{c.displayName || c.email}</span>
-                                                    <span style={{ fontSize: '0.75rem', color: c.status === 'found' ? '#4CAF50' : '#ffab40' }}>
+                                                    <span style={{ fontSize: '0.75rem', color: c.status === 'found' ? '#2e7d32' : '#e65100' }}>
                                                         {c.status === 'found'
                                                             ? '✅ User found - Will be added immediately'
                                                             : '⚠️ Not on Punch Buddy - Invite link will be generated after save'}
@@ -442,10 +443,10 @@ const CreateHabit = () => {
                             {/* Existing Collaborators (if editing) */}
                             {collaborators.length > 0 && (
                                 <div className="collaborators-list" style={{ marginTop: '1rem' }}>
-                                    <h4 style={{ fontSize: '0.9rem', marginBottom: '0.5rem', color: '#ddd' }}>Current Collaborators:</h4>
+                                    <h4 style={{ fontSize: '0.9rem', marginBottom: '0.5rem', color: '#666' }}>Current Collaborators:</h4>
                                     <ul style={{ listStyle: 'none', padding: 0 }}>
                                         {collaborators.map(c => (
-                                            <li key={c.userId} style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.05)', marginBottom: '4px', borderRadius: '4px', fontSize: '0.9rem' }}>
+                                            <li key={c.userId} style={{ padding: '0.75rem', background: '#f5f5f5', marginBottom: '6px', borderRadius: '8px', fontSize: '0.95rem', color: '#333', fontWeight: '500' }}>
                                                 {c.username}
                                             </li>
                                         ))}

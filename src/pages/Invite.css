@@ -61,12 +61,15 @@
     text-decoration: underline;
 }
 
-.habit-preview {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 2rem;
+.mini-card-preview {
+    margin-bottom: 2rem;
+    pointer-events: none;
+    /* Make it read-only visually */
+    zoom: 0.8;
+    /* Scale it down slightly */
     border-radius: 16px;
-    margin-bottom: 3rem;
-    border: 1px dashed rgba(255, 255, 255, 0.2);
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
 .habit-title {

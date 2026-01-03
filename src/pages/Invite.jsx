@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
+import { useAuth } from '../context/AuthContext';
+import { useHabits } from '../context/HabitContext';
+import PunchCard from '../components/PunchCard/PunchCard';
 import './Invite.css';
 
 const Invite = () => {
@@ -9,9 +12,19 @@ const Invite = () => {
     const [habitInfo, setHabitInfo] = useState(null);
     const [inviterName, setInviterName] = useState('');
     const [loading, setLoading] = useState(true);
+    const { user } = useAuth();
 
-    const cardId = searchParams.get('card');
+    const cardId = searchParams.get('card') || searchParams.get('id');
     const email = searchParams.get('email');
+
+    // Auto-redirect if already logged in
+    useEffect(() => {
+        if (user && cardId && habitInfo) { // Wait for habitInfo to know mode
+            const isCollab = habitInfo.mode === 'collab';
+            const param = isCollab ? 'join' : 'follow';
+            navigate(`/?${param}=${cardId}`, { replace: true });
+        }
+    }, [user, cardId, habitInfo, navigate]);
 
     useEffect(() => {
         const fetchContext = async () => {
@@ -20,38 +33,54 @@ const Invite = () => {
                 return;
             }
 
-            // Fetch card info and creator profile
-            // Use 'habit' column (schema) instead of 'title' (code)
-            const { data, error: fetchError } = await supabase
-                .from('cards')
-                .select('habit, creator_id, profiles(display_name)')
-                .eq('id', cardId)
-                .single();
+            try {
+                // Fetch card/habit details
+                const { data: card, error } = await supabase
+                    .from('cards')
+                    .select('*, creator:creator_id(display_name, email)')
+                    .eq('id', cardId)
+                    .single();
 
-            if (fetchError) {
-                console.error('Error fetching invite context:', fetchError);
-                setLoading(false);
-                return;
-            }
+                if (error) throw error;
 
-            if (data) {
+                setInviterName(card.creator?.display_name || card.creator?.email?.split('@')[0] || 'A friend');
+
+                // Format for preview
                 setHabitInfo({
-                    title: data.habit,
-                    creator_id: data.creator_id,
-                    profiles: data.profiles
+                    id: card.id,
+                    title: card.habit,
+                    reward: card.reward,
+                    icon: card.icon,
+                    color: card.color,
+                    punches: [], // Preview empty
+                    punchCount: card.punch_count || 10,
+                    mode: card.mode,
+                    creatorId: card.creator_id,
+                    // Minimal data for preview
                 });
-                setInviterName(data.profiles?.display_name || 'A friend');
+            } catch (err) {
+                console.error('Error fetching invite details:', err);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
 
         fetchContext();
     }, [cardId]);
 
     const handleJoin = () => {
-        // Redirect to login with pre-fill and join context
-        // We'll use the 'join' param in the final redirect after signup
-        navigate(`/login?email=${encodeURIComponent(email || '')}&join=${cardId}`);
+        // Store the card ID for redirect after login
+        if (cardId) {
+            localStorage.setItem('return_card_after_auth', cardId);
+            // Also store mode hint in case we need it before fetch
+            if (habitInfo) localStorage.setItem('return_card_mode', habitInfo.mode);
+        }
+
+        const isCollab = habitInfo?.mode === 'collab';
+        const param = isCollab ? 'join' : 'follow';
+
+        // Redirect to login with pre-fill and context
+        navigate(`/login?email=${encodeURIComponent(email || '')}&${param}=${cardId}`);
     };
 
     if (loading) return <div className="invite-page">Loading...</div>;
@@ -66,6 +95,8 @@ const Invite = () => {
         );
     }
 
+    const isCollab = habitInfo.mode === 'collab';
+
     return (
         <div className="invite-page">
             <div className="invite-card backdrop-blur">
@@ -76,19 +107,22 @@ const Invite = () => {
                 </div>
 
                 <p className="invite-context">
-                    <strong className="highlighter">{inviterName}</strong> invited you to collaborate on their habit:
+                    <strong className="highlighter">{inviterName}</strong> invites you to {isCollab ? 'collaborate on' : 'check out'} their habit:
                 </p>
 
-                <div className="habit-preview">
-                    <h3 className="habit-title">"{habitInfo.title}"</h3>
-                    <p className="habit-sub">Work together, stay accountable, and earn rewards!</p>
+                <div className="mini-card-preview">
+                    <PunchCard habit={habitInfo} previewMode={true} />
                 </div>
 
                 <div className="invite-actions">
                     <button onClick={handleJoin} className="button-primary join-btn">
-                        Accept & Create Account
+                        {isCollab ? 'Accept & Join' : 'Check it out'}
                     </button>
-                    <p className="invite-tiny">Already have an account? Just sign in and you'll be added!</p>
+                    <p className="invite-tiny">
+                        {isCollab
+                            ? "Already have an account? Just sign in and you'll be added!"
+                            : "Sign in to follow their progress or create your own!"}
+                    </p>
                 </div>
             </div>
         </div>

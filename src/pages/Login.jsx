@@ -1,79 +1,137 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Mail, KeyRound, User } from 'lucide-react';
+import './Login.css';
 
 const Login = () => {
-    const [searchParams] = useSearchParams();
-    const [email, setEmail] = useState(searchParams.get('email') || '');
-    const [displayName, setDisplayName] = useState('');
-    const [status, setStatus] = useState('');
-    const { signInWithEmail } = useAuth();
+    const [email, setEmail] = useState('');
+    const [displayName, setDisplayName] = useState(''); // New state
+    const [otpCode, setOtpCode] = useState('');
+    const [step, setStep] = useState('email'); // 'email' | 'otp'
+    const [message, setMessage] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const { signInWithEmail, verifyOtp, user } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
 
-    useEffect(() => {
-        const emailParam = searchParams.get('email');
-        if (emailParam) {
-            setEmail(emailParam);
-        }
+    // ... (useEffect remains same) ...
 
-        const joinParam = searchParams.get('join');
-        if (joinParam) {
-            localStorage.setItem('pending_join', joinParam);
-            console.log('Stored cross-tab pending join:', joinParam);
-        }
-    }, [searchParams]);
-
-    const handleSubmit = async (e) => {
+    const handleEmailSubmit = async (e) => {
         e.preventDefault();
-        setStatus('Sending magic link...');
-        const { error } = await signInWithEmail(email, displayName);
+        console.log('handleEmailSubmit triggered, isLoading:', isLoading);
+        if (isLoading) return; // Extra safety
+
+        setIsLoading(true);
+        setMessage('');
+
+        // Use entered name or fallback to email prefix if empty (though we made it optional/required?)
+        // Let's make it optional but default to email prefix if purely empty
+        const finalName = displayName.trim() || email.split('@')[0];
+
+        const { error } = await signInWithEmail(email, finalName);
+
+        setIsLoading(false);
         if (error) {
-            setStatus('Error: ' + error.message);
+            setMessage('Error sending login code: ' + error.message);
         } else {
-            setStatus('✅ Magic link sent! Check your email (may take 1-2 minutes). Check spam if you don\'t see it.');
+            setStep('otp');
+            setMessage('Check your email for the code or magic link!');
+        }
+    };
+
+    const handleOtpSubmit = async (e) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setMessage('');
+
+        const { data, error } = await verifyOtp(email, otpCode);
+        setIsLoading(false);
+
+        if (error) {
+            setMessage('Invalid code. Please try again.');
+        } else {
+            // Success! Redirect to intended destination or dashboard
+            const returnTo = searchParams.get('returnTo') || '/';
+            navigate(returnTo);
         }
     };
 
     return (
-        <div className="login-container" style={{ maxWidth: '400px', margin: '4rem auto', textAlign: 'center' }}>
-            <h2 style={{ color: 'white', fontSize: '2rem', marginBottom: '0.5rem', fontWeight: '800' }}>Login to Punch Buddy</h2>
-            <p style={{ color: 'rgba(255, 255, 255, 0.85)', marginBottom: '2.5rem', fontSize: '1.1rem', fontWeight: '500' }}>
-                Sign in to sync your cards across devices <br /> and collaborate with friends.
-            </p>
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <input
-                    type="text"
-                    placeholder="Display Name (public)"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    required
-                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }}
-                />
-                <input
-                    type="email"
-                    placeholder="Your email address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }}
-                />
-                <button
-                    type="submit"
-                    className="button-primary"
-                    style={{
-                        padding: '0.8rem',
-                        borderRadius: '8px',
-                        backgroundColor: '#4a90e2',
-                        color: 'white',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontWeight: 'bold'
-                    }}
-                >
-                    Send Magic Link
-                </button>
-            </form>
-            {status && <p style={{ marginTop: '1rem', color: status.startsWith('Error') ? 'red' : 'green' }}>{status}</p>}
+        <div className="login-page">
+            <div className="login-card backdrop-blur">
+                <div className="login-header">
+                    <h2>{step === 'email' ? 'Welcome Back' : 'Verify Login'}</h2>
+                    <p>{step === 'email'
+                        ? 'Enter your email to sign in or create an account.'
+                        : `Enter the code sent to ${email}`}</p>
+                </div>
+
+                {step === 'email' ? (
+                    <form onSubmit={handleEmailSubmit} className="login-form">
+                        <div className="input-group">
+                            <User className="input-icon" size={20} />
+                            <input
+                                type="text"
+                                placeholder="Your Name"
+                                value={displayName}
+                                onChange={(e) => setDisplayName(e.target.value)}
+                                disabled={isLoading}
+                                required
+                            />
+                        </div>
+                        <div className="input-group">
+                            <Mail className="input-icon" size={20} />
+                            <input
+                                type="email"
+                                placeholder="name@example.com"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                disabled={isLoading}
+                            />
+                        </div>
+                        <button type="submit" className="button-primary block" disabled={isLoading}>
+                            {isLoading ? 'Sending...' : 'Send Login Code'}
+                        </button>
+                    </form>
+                ) : (
+                    // ... (OTP form remains same) ...
+                    <form onSubmit={handleOtpSubmit} className="login-form">
+                        <div className="input-group">
+                            <KeyRound className="input-icon" size={20} />
+                            <input
+                                type="text"
+                                placeholder="123456"
+                                value={otpCode}
+                                onChange={(e) => setOtpCode(e.target.value.trim())}
+                                required
+                                maxLength={8}
+                                disabled={isLoading}
+                                autoFocus
+                                style={{ letterSpacing: '4px', textAlign: 'center', fontSize: '1.4rem' }}
+                            />
+                        </div>
+                        <button type="submit" className="button-primary block" disabled={isLoading}>
+                            {isLoading ? 'Verifying...' : 'Verify & Login'}
+                        </button>
+                        <button
+                            type="button"
+                            className="button-text"
+                            onClick={() => setStep('email')}
+                            style={{ width: '100%', marginTop: '1rem', color: '#888' }}
+                        >
+                            ← Back to Email
+                        </button>
+                    </form>
+                )}
+
+                {message && (
+                    <div className={`message ${message.includes('Error') || message.includes('Invalid') ? 'error' : 'success'}`}>
+                        {message}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

@@ -1,15 +1,104 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useHabits } from '../context/HabitContext';
 import { useAuth } from '../context/AuthContext';
 import PunchCard from '../components/PunchCard/PunchCard';
 import { Home as HomeIcon, Users, Archive, Plus } from 'lucide-react';
+import TourOverlay from '../components/TourOverlay';
 
 const Home = () => {
-    const { habits, loading } = useHabits();
+    const { habits, loading, searchUserByEmail, onboardingAction, dismissOnboarding } = useHabits();
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [currentTab, setCurrentTab] = useState('mine'); // 'mine', 'following', 'archive'
     const [categoryFilter, setCategoryFilter] = useState('All');
+
+    // Search State
+    const [searchEmail, setSearchEmail] = useState('');
+    const [searchLoading, setSearchLoading] = useState(false);
+
+    // Tour State
+    const [tourSteps, setTourSteps] = useState(null);
+
+    const handleSearch = async (e) => {
+        e.preventDefault();
+        if (!searchEmail.trim()) return;
+
+        setSearchLoading(true);
+        const { user: foundUser, error } = await searchUserByEmail(searchEmail.trim());
+        setSearchLoading(false);
+
+        if (foundUser) {
+            navigate(`/profile/${foundUser.id}`);
+        } else {
+            alert('User not found. Check the email and try again!');
+        }
+    };
+
+    // Effect to trigger tour based on onboardingAction or New User
+    useEffect(() => {
+        if (loading) return;
+
+        // 1. Followed Card Flow
+        if (onboardingAction?.type === 'follow') {
+            setCurrentTab('following');
+            setTourSteps([
+                {
+                    target: '.punch-card .card-header',
+                    title: 'Say Hello! 👋',
+                    content: "You're now following this card! Send a cheer or comment to encourage them."
+                },
+                {
+                    target: '.punch-card .action-btn-copy',
+                    title: 'Join In 👯‍♀️',
+                    content: "Want to do this habit too? Click here to add it to your own cards."
+                },
+                {
+                    target: '.btn-create',
+                    title: 'Start Fresh ✨',
+                    content: "Or create a completely new habit card from scratch."
+                }
+            ]);
+        }
+        // 2. Joined Collab Flow
+        else if (onboardingAction?.type === 'join') {
+            setCurrentTab('mine');
+            setTourSteps([
+                {
+                    target: '.punch-card .card-header',
+                    title: 'Collaborating! 🤝',
+                    content: "You're now a collaborator on this card. Punches are shared!"
+                },
+                {
+                    target: '.punch-card .comments-trigger',
+                    title: 'Cheer the Team 👏',
+                    content: "Send a message to your fellow collaborators."
+                }
+            ]);
+        }
+        // 3. New User Flow (No habits, no onboarding action)
+        else if (!onboardingAction && habits.length === 0 && !localStorage.getItem('onboarding_seen')) {
+            setTourSteps([
+                {
+                    target: '.empty-state',
+                    title: 'Welcome to Punch Buddy! 👊',
+                    content: "This is where your active habits will live."
+                },
+                {
+                    target: '.btn-create',
+                    title: 'Make Your First Habit',
+                    content: "Click here to create your first punch card. It's easy!"
+                }
+            ]);
+        }
+
+    }, [onboardingAction, loading, habits.length]);
+
+    const handleTourComplete = () => {
+        setTourSteps(null);
+        dismissOnboarding();
+        localStorage.setItem('onboarding_seen', 'true');
+    };
 
     if (loading) return <div style={{ textAlign: 'center', padding: '2rem' }}>Loading your cards...</div>;
 
@@ -46,6 +135,14 @@ const Home = () => {
 
     return (
         <div className="home-page">
+            {tourSteps && (
+                <TourOverlay
+                    steps={tourSteps}
+                    onComplete={handleTourComplete}
+                    onSkip={handleTourComplete}
+                />
+            )}
+
             <div className="tab-switcher" style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #eee', marginBottom: '1.5rem' }}>
                 <button
                     onClick={() => { setCurrentTab('mine'); setCategoryFilter('All'); }}
@@ -67,11 +164,43 @@ const Home = () => {
                 </button>
             </div>
 
+            {/* User Search (Only in Following Tab) */}
+            {currentTab === 'following' && (
+                <div className="user-search" style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.3)', backdropFilter: 'blur(10px)' }}>
+                    <form onSubmit={handleSearch} style={{ display: 'flex', gap: '8px' }}>
+                        <input
+                            type="email"
+                            placeholder="Find friend by email..."
+                            value={searchEmail}
+                            onChange={(e) => setSearchEmail(e.target.value)}
+                            required
+                            style={{ flex: 1, padding: '0.8rem', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.9rem' }}
+                        />
+                        <button
+                            type="submit"
+                            disabled={searchLoading}
+                            style={{
+                                padding: '0 1.5rem',
+                                background: '#242424',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                fontSize: '0.9rem'
+                            }}
+                        >
+                            {searchLoading ? 'Searching...' : 'Find'}
+                        </button>
+                    </form>
+                </div>
+            )}
+
             <div className="home-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <h2 style={{ fontSize: '1.2rem', margin: 0 }}>
                     {currentTab === 'mine' ? 'Your Active Cards' : currentTab === 'following' ? "Friends' Progress" : 'Archived Cards'}
                 </h2>
-                {currentTab === 'mine' && (
+                {(currentTab === 'mine' || currentTab === 'following') && (
                     <Link to="/new" className="btn-create" style={{
                         background: '#242424', color: 'white', padding: '0.5rem 1rem',
                         borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold', fontSize: '0.9rem',

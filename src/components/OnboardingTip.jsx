@@ -28,7 +28,7 @@ const OnboardingTip = () => {
             position: 'relative'
         }}>
             <Lightbulb size={16} />
-            <span>Tip: Add to your home screen for the best experience! 📱</span>
+            <span>Pro Tip: Share ➔ 'Add to Home Screen' to use like an app 📱</span>
             <button
                 onClick={handleDismiss}
                 style={{

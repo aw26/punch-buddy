@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useHabits } from '../../context/HabitContext';
+import { useAuth } from '../../context/AuthContext';
 import { playSound } from '../../utils/sound';
-import { SquareArrowUp, Pencil, Trash2, Users, TriangleAlert, MessageSquare } from 'lucide-react';
+import { SquareArrowUp, Pencil, Trash2, Users, TriangleAlert, MessageSquare, Heart, Copy } from 'lucide-react';
 import CommentsSection from './CommentsSection';
+import { supabase } from '../../utils/supabaseClient';
 import './PunchCard.css';
 
 const PunchSlot = ({ index, filled, color, onClick, isComplete }) => {
     return (
         <div
             className={`punch-slot ${filled ? 'filled' : ''} ${isComplete ? 'complete' : ''}`}
-            onClick={!filled && !isComplete ? onClick : undefined}
+            onClick={onClick}
             style={{
-                '--card-color': color
+                '--card-color': color,
+                cursor: onClick ? 'pointer' : 'default'
             }}
         >
             {filled && <span className="checkmark">✔</span>}
@@ -20,25 +23,38 @@ const PunchSlot = ({ index, filled, color, onClick, isComplete }) => {
     );
 };
 
-const PunchCard = ({ habit }) => {
-    const { punchHabit, deleteHabit, archiveHabit } = useHabits();
+const PunchCard = ({ habit, previewMode = false }) => {
+    const { punchHabit, deleteHabit, archiveHabit, habits, followCard, unpunchHabit, copyHabit } = useHabits();
+    const { user } = useAuth();
     const [showComments, setShowComments] = React.useState(false);
     const [showCopyToast, setShowCopyToast] = React.useState(false);
-    const totalSlots = habit.punchCount || 10;
+
+    // Derived state
+    const totalSlots = (typeof habit.punchCount === 'number' && habit.punchCount > 0) ? habit.punchCount : 10;
     const filledSlots = habit.punches.length;
     const isComplete = filledSlots >= totalSlots;
+    const isOwner = user?.id === habit.creatorId;
+    const isCollaborator = user && habit.collaborators?.some(c => c.user_id === user.id);
+    const ownerName = isOwner ? 'You' : (habit.creatorName || 'Friend');
 
-    const handlePunch = () => {
-        if (isComplete) return;
+    // DEBUG:
+    console.log('PunchCard Debug:', { id: habit.id, title: habit.title, totalSlots, filledSlots, punchCountRaw: habit.punchCount, isComplete });
 
+    const [isPunching, setIsPunching] = useState(false);
+
+    const handlePunch = async () => {
+        if (isComplete || isPunching) return;
+
+        setIsPunching(true);
         // Play generic punch sound
         playSound('punch');
 
-        punchHabit(habit.id);
-
-        // Check if this was the last punch (logic in parent or effect?)
-        // If it becomes complete, handle celebration locally or global overlay?
-        // Start with local alert/effect.
+        try {
+            await punchHabit(habit.id);
+        } finally {
+            // Small delay to prevent double-taps
+            setTimeout(() => setIsPunching(false), 500);
+        }
     };
 
     const calculateStreak = () => {
@@ -78,12 +94,37 @@ const PunchCard = ({ habit }) => {
     const streak = calculateStreak();
     const isExpired = habit.expiresAt && new Date(habit.expiresAt) < new Date().setHours(0, 0, 0, 0);
 
+    const handleSlotClick = (i) => {
+        if (previewMode) return;
+
+        // Permission check for punching
+        // Only Owner or Collaborator can punch
+        const canPunch = isOwner || isCollaborator;
+
+        if (!canPunch) {
+            // It's a followed card (or public view)
+            alert(`This is ${ownerName}'s card. To track your own habits, create a new habit or add this one to your cards!`);
+            return;
+        }
+
+        // Punching: Next available slot (if not complete)
+        if (!isComplete && i === filledSlots) {
+            handlePunch();
+        }
+        // Unpunching: Last filled slot
+        else if (i === filledSlots - 1) {
+            if (confirm('Undo last punch?')) {
+                unpunchHabit(habit.id);
+            }
+        }
+    };
+
     return (
         <div
             className={`punch-card ${isExpired && !isComplete ? 'expired' : ''}`}
             style={{
                 '--card-color': habit.color,
-                backgroundColor: habit.color, // Direct application to ensure it takes effect
+                backgroundColor: habit.color,
                 opacity: isExpired && !isComplete ? 0.8 : 1,
             }}
         >
@@ -91,8 +132,13 @@ const PunchCard = ({ habit }) => {
             <div className="card-header">
                 <div className="card-icon">{habit.icon}</div>
                 <div className="card-info">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <h3>{habit.title}</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <h3 style={{ margin: 0 }}>{habit.title}</h3>
+                        {!isOwner && !previewMode && (
+                            <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.8)', background: 'rgba(0,0,0,0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                                by {ownerName}
+                            </span>
+                        )}
                         {habit.mode === 'collab' && (
                             <span
                                 className="collab-lozenge"
@@ -115,17 +161,63 @@ const PunchCard = ({ habit }) => {
                     <p className="reward">🏆 Reward: {habit.reward || (habit.mode === 'collab' ? 'Collaborative Goal' : 'None set')}</p>
                 </div>
                 <div className="card-actions">
-                    <button onClick={() => {
-                        const baseUrl = window.location.href.split('#')[0].replace(/\/$/, "");
-                        const url = habit.id
-                            ? `${baseUrl}/#/share?id=${habit.id}`
-                            : `${baseUrl}/#/share?data=${btoa(JSON.stringify(habit))}`;
-                        navigator.clipboard.writeText(url);
-                        setShowCopyToast(true);
-                        setTimeout(() => setShowCopyToast(false), 2000);
-                    }} className="btn-icon" title="Share Link"><SquareArrowUp size={16} /></button>
-                    {!habit.archived && <Link to={`/edit/${habit.id}`} className="btn-icon" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Edit"><Pencil size={16} /></Link>}
-                    <button onClick={() => { if (confirm('Delete this card?')) deleteHabit(habit.id); }} className="btn-icon" title="Delete"><Trash2 size={16} /></button>
+                    {/* Follow/Unfollow Button */}
+                    {user && user.id !== habit.creatorId && (
+                        <button
+                            onClick={async () => {
+                                const isFollowing = habit.followers?.some(f => f.user_id === user.id);
+                                if (isFollowing) {
+                                    alert('You are already following this card! (Unfollow not implemented yet)');
+                                } else {
+                                    const { error } = await followCard(habit.id, habit);
+                                    if (error) alert('Error following: ' + error);
+                                    else alert('Followed! Check your "Following" tab.');
+                                }
+                            }}
+                            className="btn-icon"
+                            title="Follow this card"
+                            style={{ color: habit.followers?.some(f => f.user_id === user?.id) ? '#ff4081' : 'inherit' }}
+                        >
+                            <Heart size={16} fill={habit.followers?.some(f => f.user_id === user?.id) ? '#ff4081' : 'none'} />
+                        </button>
+                    )}
+
+                    {/* Copy/Clone Button for non-owners */}
+                    {user && user.id !== habit.creatorId && !previewMode && (
+                        <button
+                            onClick={async () => {
+                                if (confirm('Add this habit to your own cards?')) {
+                                    const { error } = await copyHabit(habit);
+                                    if (error) alert('Error copying: ' + error);
+                                    else alert('Added to your cards!');
+                                }
+                            }}
+                            className="btn-icon action-btn-copy"
+                            title="Add to my habits"
+                        >
+                            <Copy size={16} />
+                        </button>
+                    )}
+
+                    {!previewMode && (
+                        <button onClick={() => {
+                            const baseUrl = window.location.href.split('#')[0].replace(/\/$/, "");
+                            const url = habit.id
+                                ? `${baseUrl}/#/share?id=${habit.id}`
+                                : `${baseUrl}/#/share?data=${btoa(JSON.stringify(habit))}`;
+                            navigator.clipboard.writeText(url);
+                            setShowCopyToast(true);
+                            setTimeout(() => setShowCopyToast(false), 2000);
+                        }} className="btn-icon" title="Share Link"><SquareArrowUp size={16} /></button>
+                    )}
+
+                    {/* Only show Edit/Delete if creator */}
+                    {(!habit.creatorId || habit.creatorId === user?.id) && !previewMode && (
+                        <>
+                            {!habit.archived && <Link to={`/edit/${habit.id}`} className="btn-icon" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Edit"><Pencil size={16} /></Link>}
+                            <button onClick={() => { if (confirm('Delete this card?')) deleteHabit(habit.id); }} className="btn-icon" title="Delete"><Trash2 size={16} /></button>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -136,41 +228,55 @@ const PunchCard = ({ habit }) => {
             )}
 
             <div className="punch-grid" style={{ gridTemplateColumns: `repeat(${totalSlots === 30 ? 6 : 5}, 1fr)` }}>
-                {[...Array(totalSlots)].map((_, i) => (
-                    <PunchSlot
-                        key={i}
-                        index={i}
-                        filled={i < filledSlots}
-                        color={habit.color}
-                        onClick={handlePunch}
-                        isComplete={isComplete}
-                    />
-                ))}
+                {[...Array(totalSlots)].map((_, i) => {
+                    // Determine if actionable
+                    let isActionable = false;
+                    if (!previewMode) {
+                        if (!isComplete && i === filledSlots) isActionable = true; // Next empty
+                        if (i === filledSlots - 1) isActionable = true; // Last filled
+                    }
+
+                    return (
+                        <PunchSlot
+                            key={i}
+                            index={i}
+                            filled={i < filledSlots}
+                            color={habit.color}
+                            onClick={isActionable ? () => handleSlotClick(i) : undefined}
+                            isComplete={isComplete}
+                        />
+                    );
+                })}
             </div>
 
             <div className="card-footer">
-                <span className="expiration" style={{ color: isExpired && !isComplete ? '#ff5252' : 'rgba(255,255,255,0.9)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    {isExpired && !isComplete ? <><TriangleAlert size={14} /> Expired: </> : 'Expires: '} {habit.expiresAt ? habit.expiresAt.split('T')[0] : 'Never'}
-                </span>
+                {!previewMode && (
+                    <span className="expiration" style={{ color: isExpired && !isComplete ? '#ff5252' : 'rgba(255,255,255,0.9)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        {isExpired && !isComplete ? <><TriangleAlert size={14} /> Expired: </> : 'Expires: '} {habit.expiresAt ? habit.expiresAt.split('T')[0] : 'Never'}
+                    </span>
+                )}
                 {streak > 1 && <span className="streak">🔥 {streak} day streak!</span>}
             </div>
 
-            {isComplete && !habit.archived && (
+            {isComplete && !habit.archived && !previewMode && (
                 <div className="completion-banner">
                     <p>Completed!</p>
                     <button onClick={() => archiveHabit(habit.id)}>Archive</button>
                 </div>
             )}
 
-            <div style={{ marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.5rem' }}>
-                <button
-                    onClick={() => setShowComments(!showComments)}
-                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                    <MessageSquare size={14} /> {habit.comments?.length || 0} {showComments ? 'Hide Comments' : 'Comments & Cheers'}
-                </button>
-                {showComments && <CommentsSection cardId={habit.id} comments={habit.comments || []} />}
-            </div>
+            {!previewMode && (
+                <div style={{ marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.5rem' }}>
+                    <button
+                        onClick={() => setShowComments(!showComments)}
+                        className="comments-trigger"
+                        style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                        <MessageSquare size={14} /> {habit.comments?.length || 0} {showComments ? 'Hide Comments' : 'Cheer or Comment'}
+                    </button>
+                    {showComments && <CommentsSection cardId={habit.id} comments={habit.comments || []} cardOwnerName={ownerName} />}
+                </div>
+            )}
         </div>
     );
 };

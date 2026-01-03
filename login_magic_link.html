@@ -119,11 +119,17 @@
                     <p class="subtitle">My Habit Rewards Card</p>
                 </div>
                 <div class="content">
-                    <h2>Time to habit! 🚀</h2>
-                    <p>Tap the button below to log back into your dashboard instantly. Your progress is waiting!</p>
-                    <a href="{{ .ConfirmationURL }}" class="btn">Log In Instantly</a>
+                    <h2>Your Login Code</h2>
+                    <div style="background: #f0f4f8; padding: 20px; border-radius: 16px; margin: 20px 0;">
+                        <span
+                            style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #4338ca; display: block;">{{
+                            .Token }}</span>
+                    </div>
+                    <p>Enter the code above to log in to Punch Buddy.</p>
+                    <p style="font-size: 14px; margin-top: 30px;">Or verify instantly by clicking below:</p>
+                    <a href="{{ .ConfirmationURL }}" class="btn">Log In</a>
                     <div style="margin-top: 40px; font-size: 13px; color: #aaa;">
-                        Link expires in 1 hour. If you didn't request this, ignore it.
+                        Code expires in 5 minutes. If you didn't request this, ignore it.
                     </div>
                 </div>
             </div>

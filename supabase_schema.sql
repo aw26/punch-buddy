@@ -52,6 +52,7 @@ create table collaborators (
   id uuid default uuid_generate_v4() primary key,
   card_id uuid references cards(id) on delete cascade not null,
   user_id uuid references profiles(id) not null,
+  role text check (role in ('editor', 'viewer')) default 'editor',
   joined_at timestamp with time zone default timezone('utc'::text, now()) not null,
   unique(card_id, user_id)
 );
@@ -69,10 +70,12 @@ create table followers (
 create table comments (
   id uuid default uuid_generate_v4() primary key,
   card_id uuid references cards(id) on delete cascade not null,
-  user_id uuid references profiles(id) not null,
+  user_id uuid references profiles(id),
+  guest_name text,
   comment_text text,
   emoji text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  check ((user_id is not null) or (guest_name is not null))
 );
 
 -- Edit Requests (for collab mode)
@@ -164,14 +167,24 @@ create policy "Followers are public select" on followers for select using (true)
 -- 2. Members can post
 create policy "Comments are public select" on comments for select using (true);
 
-create policy "Members can post comments" on comments for insert with check (
-  exists (select 1 from cards where id = card_id and (
-    creator_id = auth.uid() 
-    or mode = 'collab'
+create policy "Anyone can post comments on non-private cards" on comments for insert with check (
+  -- Authenticated users: existing logic
+  (auth.uid() is not null and exists (
+    select 1 from cards where id = card_id and (
+      creator_id = auth.uid() 
+      or mode = 'collab'
+    )
+  ))
+  -- OR Guest users: can comment on any non-private card
+  or (auth.uid() is null and exists (
+    select 1 from cards where id = card_id and not is_private
   ))
 );
 
-create policy "Users can delete own comments" on comments for delete using (auth.uid() = user_id);
+
+create policy "Users can delete own comments" on comments for delete using (
+  auth.uid() is not null and auth.uid() = user_id
+);
 
 -- Edit Requests:
 -- 1. Collaborators can request

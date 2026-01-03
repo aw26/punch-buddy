@@ -28,6 +28,36 @@ const playShimmer = (duration = 0.5) => {
     }
 };
 
+const noiseBuffer = (() => {
+    const bufferSize = ctx.sampleRate * 2; // 2 seconds
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const output = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+    }
+    return buffer;
+})();
+
+const playNoise = (duration = 0.1, volume = 0.2) => {
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer;
+    const gain = ctx.createGain();
+
+    // Bandpass filter to make it sound more like paper/texture
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 1000;
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+    noise.start();
+};
+
 export const playSound = (soundId) => {
     if (localStorage.getItem('punchtime_muted') === 'true') return;
 
@@ -61,12 +91,43 @@ export const playSound = (soundId) => {
             playTone(220, 'sawtooth', 0.5); // Multi-tone for richness
             break;
         case 'punch':
-            // Sharp paper punch / pop sound
-            playTone(150, 'triangle', 0.05);
-            setTimeout(() => playTone(300, 'square', 0.05), 20);
+            // "Happy Pop + Crunch"
+
+            // 1. The Pop (Happy upward inflection, slight bubble feel)
+            {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.frequency.setValueAtTime(400, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.15);
+
+                gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+
+                osc.type = 'sine';
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.15);
+            }
+
+            // 2. The Paper Crunch (Crisp high-end texture)
+            {
+                playNoise(0.05, 0.3); // Shorter, crisper noise
+            }
             break;
         default:
-            // Default punch sound or fallback
-            playTone(200, 'square', 0.1);
+            // Bubble Pop style fallback
+            {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.frequency.setValueAtTime(400, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.1); // Pitch bend up
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.1);
+            }
     }
 };

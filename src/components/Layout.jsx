@@ -32,6 +32,13 @@ const Layout = ({ children }) => {
                             <span style={{ fontSize: '0.8rem', marginRight: '0.5rem' }}>
                                 {user.email?.split('@')[0]}
                             </span>
+                            <Link
+                                to="/profile/edit"
+                                className="button-text"
+                                style={{ fontSize: '0.8rem', padding: '0.2rem 0.6rem', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '6px', background: 'rgba(255,255,255,0.1)', color: 'white', textDecoration: 'none', marginRight: '4px' }}
+                            >
+                                Settings
+                            </Link>
                             <button
                                 onClick={handleSignOut}
                                 className="button-text"

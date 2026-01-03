@@ -1,0 +1,86 @@
+.tour-overlay-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9999;
+    pointer-events: none;
+    /* Let clicks pass through generally? No, we probably want to block interaction unless it's the target */
+    /* Actually for a simple tour, blocking interaction is safer */
+    pointer-events: auto;
+}
+
+.tour-highlight-box {
+    position: absolute;
+    border-radius: 8px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
+    /* The spotlight effect! */
+    z-index: 10000;
+    transition: all 0.3s ease;
+    pointer-events: none;
+    /* Let clicks pass through to the underlying element */
+}
+
+/* Ensure helpful pointer events for the tooltip */
+.tour-tooltip {
+    position: absolute;
+    width: 300px;
+    background: white;
+    padding: 1rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    z-index: 10001;
+    /* Above highlight */
+    animation: fadeIn 0.3s ease;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.tour-content h4 {
+    margin: 0 0 0.5rem 0;
+    color: #333;
+}
+
+.tour-content p {
+    margin: 0 0 1rem 0;
+    color: #666;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.tour-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.btn-primary-small {
+    background: #4a90e2;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.85rem;
+}
+
+.btn-text {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

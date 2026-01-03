@@ -1,5 +1,5 @@
 import React from 'react';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { HabitProvider, useHabits } from './context/HabitContext';
 import { AuthProvider } from './context/AuthContext';
 import Layout from './components/Layout';
@@ -10,6 +10,8 @@ import SharedCard from './pages/SharedCard';
 import Login from './pages/Login';
 import CelebrationOverlay from './components/CelebrationOverlay';
 import Invite from './pages/Invite';
+import UserProfile from './pages/UserProfile';
+import EditProfile from './pages/EditProfile';
 
 const AppContent = () => {
     const { celebration, clearCelebration } = useHabits();
@@ -27,9 +29,12 @@ const AppContent = () => {
                 <Route path="/new" element={<CreateHabit />} />
                 <Route path="/edit/:id" element={<CreateHabit />} />
                 <Route path="/share" element={<SharedCard />} />
-                <Route path="/archive" element={<Archive />} />
-                <Route path="/login" element={<Login />} />
                 <Route path="/invite" element={<Invite />} />
+                <Route path="/shared/:id" element={<SharedCard />} />
+                <Route path="/profile/edit" element={<EditProfile />} />
+                <Route path="/profile/:userId" element={<UserProfile />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </Layout>
     );
@@ -37,13 +42,13 @@ const AppContent = () => {
 
 function App() {
     return (
-        <AuthProvider>
-            <HabitProvider>
-                <Router>
+        <Router>
+            <AuthProvider>
+                <HabitProvider>
                     <AppContent />
-                </Router>
-            </HabitProvider>
-        </AuthProvider>
+                </HabitProvider>
+            </AuthProvider>
+        </Router>
     );
 }
 

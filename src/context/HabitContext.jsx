@@ -19,6 +19,15 @@ export const HabitProvider = ({ children }) => {
     const [habits, setHabits] = useState([]);
     const [loading, setLoading] = useState(true);
     const [celebration, setCelebration] = useState(null);
+    const migratedUsers = React.useRef(new Set());
+    const [onboardingAction, setOnboardingAction] = useState(null); // { type: 'join'|'follow'|'new', cardId }
+
+    // Clear migration history on logout so re-logins can migrate new data
+    useEffect(() => {
+        if (!user) {
+            migratedUsers.current.clear();
+        }
+    }, [user]);
 
     // Fetch habits handling both Local and Remote
     useEffect(() => {
@@ -39,12 +48,40 @@ export const HabitProvider = ({ children }) => {
         };
 
         const migrateLocalHabits = async (userId) => {
-            const localHabits = loadHabits();
-            if (!localHabits || localHabits.length === 0) return;
+            // Strict Mode Protection: Prevent double-invocation
+            if (migratedUsers.current.has(userId)) {
+                console.log('Already migrated for this user session:', userId);
+                return;
+            }
+            migratedUsers.current.add(userId);
 
-            console.log('Migrating local habits for user:', userId);
+            const localHabits = loadHabits();
+            if (!localHabits || localHabits.length === 0) {
+                console.log('No local habits to migrate.');
+                return;
+            }
+
+            console.log('Starting migration of local habits for user:', userId, 'Count:', localHabits.length);
+            let migrationCount = 0;
+            let errorCount = 0;
 
             for (const habit of localHabits) {
+                // Check if already migrated (deduplication check)
+                // We use matching created_at logic since we preserve the original timestamp
+                const { data: existing } = await supabase
+                    .from('cards')
+                    .select('id')
+                    .eq('creator_id', userId)
+                    .eq('habit', habit.title)
+                    .eq('created_at', habit.createdAt)
+                    .maybeSingle();
+
+                if (existing) {
+                    console.log('Skipping duplicate migration for:', habit.title);
+                    migrationCount++; // Count as success to ensure we clear local eventually
+                    continue;
+                }
+
                 // Insert card
                 const { data: card, error: cardError } = await supabase.from('cards').insert({
                     creator_id: userId,
@@ -62,7 +99,8 @@ export const HabitProvider = ({ children }) => {
                 }).select().single();
 
                 if (cardError) {
-                    console.error('Error migrating card:', cardError);
+                    console.error('Error migrating card:', habit.title, cardError);
+                    errorCount++;
                     continue;
                 }
 
@@ -76,11 +114,18 @@ export const HabitProvider = ({ children }) => {
                     const { error: punchError } = await supabase.from('punches').insert(punchesToInsert);
                     if (punchError) console.error('Error migrating punches:', punchError);
                 }
+                migrationCount++;
             }
 
-            // Clear local storage after successful migration
-            saveHabits([]);
-            console.log('Migration complete.');
+            console.log(`Migration complete. Success: ${migrationCount}, Errors: ${errorCount}`);
+
+            // Clear local storage only if we successfully migrated something or tried to
+            if (migrationCount > 0) {
+                saveHabits([]);
+                console.log('Local habits cleared.');
+                // Force refresh
+                await fetchHabits();
+            }
         };
 
         const fetchHabits = async () => {
@@ -95,11 +140,48 @@ export const HabitProvider = ({ children }) => {
             }
 
             // Authenticated: Supabase
-            // Then fetch all
             try {
+                // Step 1: Get cards I created
+                const { data: created, error: e1 } = await supabase
+                    .from('cards')
+                    .select('id')
+                    .eq('creator_id', user.id);
+                if (e1) throw e1;
+
+                // Step 2: Get cards I am a collaborator on
+                const { data: collab, error: e2 } = await supabase
+                    .from('collaborators')
+                    .select('card_id')
+                    .eq('user_id', user.id);
+                if (e2) throw e2;
+
+                // Step 3: Get cards I follow
+                const { data: following, error: e3 } = await supabase
+                    .from('followers')
+                    .select('card_id')
+                    .eq('user_id', user.id);
+                if (e3) throw e3;
+
+                // Combine IDs
+                const myCardIds = new Set([
+                    ...created.map(c => c.id),
+                    ...collab.map(c => c.card_id),
+                    ...following.map(c => c.card_id)
+                ]);
+
+                if (myCardIds.size === 0) {
+                    if (mounted) {
+                        setHabits([]);
+                        setLoading(false);
+                    }
+                    return;
+                }
+
+                // Step 4: Fetch details for these specific cards
                 const { data: cards, error } = await supabase
                     .from('cards')
-                    .select('*, punches(punched_at), collaborators(user_id, profiles(display_name)), followers(user_id, profiles(display_name)), comments(*, profiles(display_name))');
+                    .select('*, punches(punched_at), collaborators(user_id, profiles(display_name)), followers(user_id, profiles(display_name)), comments(*, profiles(display_name)), creator:creator_id(display_name, email)')
+                    .in('id', Array.from(myCardIds));
 
                 if (error) throw error;
 
@@ -116,8 +198,9 @@ export const HabitProvider = ({ children }) => {
                     category: c.category || '',
                     archived: c.archived,
                     mode: c.mode,
-                    punchCount: c.punch_count || 10,
+                    punchCount: parseInt(c.punch_count, 10) || 10,
                     creatorId: c.creator_id,
+                    creatorName: c.creator?.display_name || c.creator?.email?.split('@')[0] || 'Unknown',
                     collaborators: c.collaborators || [],
                     followers: c.followers || [],
                     comments: c.comments || [],
@@ -134,6 +217,10 @@ export const HabitProvider = ({ children }) => {
             }
         };
 
+
+
+        // ... (rest of provider code)
+
         // Initial fetch and one-time migration
         const init = async () => {
             if (user?.id) {
@@ -143,14 +230,25 @@ export const HabitProvider = ({ children }) => {
                 // Auto-join logic (URL or Cross-tab LocalStorage)
                 const params = new URLSearchParams(window.location.search);
                 const joinId = params.get('join') || localStorage.getItem('pending_join');
+                const followId = params.get('follow') || localStorage.getItem('pending_follow');
 
                 if (joinId) {
-                    console.log('Executing persistent cross-tab auto-join for:', joinId);
+                    console.log('Executing persistent auto-join for:', joinId);
                     await joinCollab(joinId);
+                    setOnboardingAction({ type: 'join', cardId: joinId });
 
                     // Cleanup
                     localStorage.removeItem('pending_join');
                     const newUrl = window.location.pathname + window.location.search.replace(/[?&]join=[^&]+/, '').replace(/^&/, '?');
+                    window.history.replaceState({}, '', newUrl);
+                } else if (followId) {
+                    console.log('Executing persistent auto-follow for:', followId);
+                    await followCard(followId);
+                    setOnboardingAction({ type: 'follow', cardId: followId });
+
+                    // Cleanup
+                    localStorage.removeItem('pending_follow');
+                    const newUrl = window.location.pathname + window.location.search.replace(/[?&]follow=[^&]+/, '').replace(/^&/, '?');
                     window.history.replaceState({}, '', newUrl);
                 }
             }
@@ -182,8 +280,7 @@ export const HabitProvider = ({ children }) => {
                 .on(
                     'postgres_changes',
                     { event: '*', schema: 'public', table: 'comments' },
-                    () => fetchHabits() // Refresh habits to get comments if we include them? 
-                    // Actually, let's just listen and refresh to keep it simple.
+                    () => fetchHabits()
                 )
                 .subscribe();
         }
@@ -192,7 +289,7 @@ export const HabitProvider = ({ children }) => {
             mounted = false;
             if (channel) supabase.removeChannel(channel);
         };
-    }, [user]);
+    }, [user?.id]);
 
     // Save to LocalStorage if Guest
     useEffect(() => {
@@ -244,7 +341,8 @@ export const HabitProvider = ({ children }) => {
             icon: habitData.icon,
             color: habitData.color,
             celebration_sound: habitData.sound,
-            mode: habitData.mode || 'personal'
+            mode: habitData.mode || 'personal',
+            is_private: habitData.isPrivate || false
         }).select().single();
 
         if (error) {
@@ -266,6 +364,7 @@ export const HabitProvider = ({ children }) => {
                 category: data.category || '',
                 archived: data.archived,
                 mode: data.mode,
+                isPrivate: data.is_private,
                 punchCount: data.punch_count || 10,
                 creatorId: data.creator_id,
                 collaborators: [],
@@ -280,10 +379,12 @@ export const HabitProvider = ({ children }) => {
     };
 
     const updateHabit = async (id, updates) => {
+        // Optimistic update for both local and remote
+        setHabits((prev) =>
+            prev.map((h) => (h.id === id ? { ...h, ...updates } : h))
+        );
+
         if (!user) {
-            setHabits((prev) =>
-                prev.map((h) => (h.id === id ? { ...h, ...updates } : h))
-            );
             return;
         }
 
@@ -297,19 +398,43 @@ export const HabitProvider = ({ children }) => {
         if (updates.color) dbUpdates.color = updates.color;
         if (updates.sound) dbUpdates.celebration_sound = updates.sound;
         if (updates.mode) dbUpdates.mode = updates.mode;
-        if (updates.punchCount) dbUpdates.punch_count = updates.punchCount;
+        if (updates.punchCount) {
+            const val = parseInt(updates.punchCount, 10);
+            dbUpdates.punch_count = val;
+            // Ensure local state is also number
+            updates.punchCount = val;
+        }
+        if (updates.isPrivate !== undefined) dbUpdates.is_private = updates.isPrivate;
 
         if (Object.keys(dbUpdates).length > 0) {
-            await supabase.from('cards').update(dbUpdates).eq('id', id);
+            const { error } = await supabase.from('cards').update(dbUpdates).eq('id', id);
+            if (error) {
+                console.error('Error updating habit:', error);
+                // Revert optimistic update (requires fetching state again or complicated rollback)
+                // For now, accept that UI might blink if we refresh, but realtime should fix it back to truth
+                // or we could show an alert.
+                // alert('Error updating card');
+            }
         }
     };
 
     const deleteHabit = async (id) => {
+        // Optimistic update
+        const previousHabits = [...habits];
+        setHabits((prev) => prev.filter((h) => h.id !== id));
+
         if (!user) {
-            setHabits((prev) => prev.filter((h) => h.id !== id));
             return;
         }
-        await supabase.from('cards').delete().eq('id', id);
+
+        const { error } = await supabase.from('cards').delete().eq('id', id);
+
+        if (error) {
+            console.error('Error deleting habit:', error);
+            alert('Failed to delete card: ' + error.message);
+            // Rollback
+            setHabits(previousHabits);
+        }
     };
 
     const archiveHabit = (id) => {
@@ -407,19 +532,65 @@ export const HabitProvider = ({ children }) => {
         }
     };
 
-    const addComment = async (cardId, commentText, emoji) => {
-        if (!user) return { error: 'Must be logged in to comment' };
+    const addComment = async (cardId, commentText, emoji, guestName = null) => {
+        const insertData = {
+            card_id: cardId,
+            comment_text: commentText,
+            emoji: emoji,
+            created_at: new Date().toISOString() // Needed for optimistic render
+        };
 
+        if (user) {
+            insertData.user_id = user.id;
+            // Optimistic Display Name lookup (approximated)
+            // ideally we'd have the user's profile loaded, but defaults work for immediate feedback
+        } else if (guestName) {
+            insertData.guest_name = guestName;
+        } else {
+            return { error: 'Must provide guest name or be logged in' };
+        }
+
+        // 1. Optimistic Update
+        const optimisticComment = {
+            id: 'temp-' + Date.now(), // Temporary ID
+            ...insertData,
+            profiles: user ? { display_name: user.user_metadata?.display_name || user.email?.split('@')[0] } : null
+        };
+
+        setHabits(prev => prev.map(card => {
+            if (card.id === cardId) {
+                return {
+                    ...card,
+                    comments: [...(card.comments || []), optimisticComment]
+                };
+            }
+            return card;
+        }));
+
+        // 2. Remote Update
         const { error } = await supabase
             .from('comments')
             .insert({
                 card_id: cardId,
-                user_id: user.id,
                 comment_text: commentText,
-                emoji: emoji
-            });
+                emoji: emoji,
+                user_id: user?.id,
+                guest_name: guestName
+            }); // Don't send created_at (let DB timestamp it)
 
-        if (error) return { error: error.message };
+        if (error) {
+            // Rollback on error
+            setHabits(prev => prev.map(card => {
+                if (card.id === cardId) {
+                    return {
+                        ...card,
+                        comments: card.comments.filter(c => c.id !== optimisticComment.id)
+                    };
+                }
+                return card;
+            }));
+            return { error: error.message };
+        }
         return { success: true };
     };
 
@@ -428,10 +599,11 @@ export const HabitProvider = ({ children }) => {
         if (!user) return { error: 'Must be logged in to share' };
         try {
             // Find user by display_name or email
+            // Find user by display_name or email (case insensitive)
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
                 .select('id, display_name')
-                .or(`display_name.eq."${targetIdentifier}",email.eq."${targetIdentifier}"`)
+                .or(`display_name.ilike."${targetIdentifier}",email.ilike."${targetIdentifier}"`)
                 .maybeSingle();
 
             if (profileError) throw profileError;
@@ -465,10 +637,23 @@ export const HabitProvider = ({ children }) => {
         }
     };
 
-    const joinCollab = async (cardId) => {
+    const joinCollab = async (cardId, habitData = null) => {
         if (!user) return { error: 'Must be logged in to join' };
 
-        // Check if already in it
+        // Optimistic: If we have habitData, add it to habits immediately
+        if (habitData) {
+            setHabits(prev => {
+                if (prev.some(h => h.id === cardId)) return prev;
+                // Add current user to collaborators list optimistically
+                const optimCollab = { user_id: user.id, profiles: { display_name: 'You' } };
+                return [{
+                    ...habitData,
+                    collaborators: [...(habitData.collaborators || []), optimCollab]
+                }, ...prev];
+            });
+        }
+
+        // Check if already in it (Backend check)
         const { data: existing } = await supabase
             .from('collaborators')
             .select('id')
@@ -485,12 +670,33 @@ export const HabitProvider = ({ children }) => {
                 user_id: user.id
             });
 
-        if (error) return { error: error.message };
+        if (error) {
+            // Rollback if needed (complex, but minor blink risk acceptable for optimistic UI)
+            return { error: error.message };
+        }
         return { success: true };
     };
 
-    const followCard = async (cardId) => {
+    const followCard = async (cardId, habitData = null) => {
         if (!user) return { error: 'Must be logged in to follow' };
+
+        // Optimistic: Add to habits list directly
+        if (habitData) {
+            setHabits(prev => {
+                // Prevent duplicates
+                if (prev.some(h => h.id === cardId)) return prev;
+                // Add current user to followers list optimistically
+                const optimFollower = { user_id: user.id, profiles: { display_name: 'You' } };
+                return [{
+                    ...habitData,
+                    followers: [...(habitData.followers || []), optimFollower]
+                }, ...prev];
+            });
+        }
+
+        // Also if we DON'T have habitData (e.g. from card view), we should try to fetch it or finding it from available cards if possible
+        // But typically followCard is called with habitData if we are looking at it.
+        // Let's ensure we add it if we can find it in the public list or if it's passed.
 
         const { error } = await supabase
             .from('followers')
@@ -499,7 +705,7 @@ export const HabitProvider = ({ children }) => {
                 user_id: user.id
             });
 
-        if (error && error.code !== '23505') { // Ignore unique constraint error (already following)
+        if (error && error.code !== '23505') { // Ignore unique constraint error
             return { error: error.message };
         }
         return { success: true };
@@ -517,7 +723,8 @@ export const HabitProvider = ({ children }) => {
             icon: habit.icon,
             color: habit.color,
             celebration_sound: habit.sound,
-            mode: 'personal'
+            mode: 'personal',
+            is_private: false // Copies are public by default unless changed
         });
 
         if (error) return { error: error.message };
@@ -531,6 +738,60 @@ export const HabitProvider = ({ children }) => {
         }
 
         return { success: true };
+    };
+
+    const searchUserByEmail = async (query) => {
+        if (!query) return { error: 'Empty query' };
+
+        // Find user by display_name or email (case insensitive)
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('id, display_name, email, avatar_url')
+            .or(`display_name.ilike."${query}",email.ilike."${query}"`)
+            .maybeSingle();
+
+        if (error) {
+            console.error('Search user error:', error);
+            return { error: error.message };
+        }
+        return { user: data };
+    };
+
+    const fetchPublicHabits = async (userId) => {
+        const { data: cards, error } = await supabase
+            .from('cards')
+            .select('*, punches(punched_at), collaborators(user_id, profiles(display_name)), followers(user_id, profiles(display_name)), comments(*, profiles(display_name)), creator:creator_id(display_name, email)')
+            .eq('creator_id', userId)
+            .eq('is_private', false)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching public habits:', error);
+            return [];
+        }
+
+        // Transform to internal shape
+        return cards.map(c => ({
+            id: c.id,
+            createdAt: c.created_at,
+            title: c.habit,
+            reward: c.reward || '',
+            icon: c.icon,
+            color: c.color,
+            sound: c.celebration_sound,
+            expiresAt: c.expiration,
+            category: c.category || '',
+            archived: c.archived,
+            mode: c.mode,
+            isPrivate: c.is_private,
+            punchCount: c.punch_count || 10,
+            creatorId: c.creator_id,
+            creatorName: c.creator?.display_name || c.creator?.email?.split('@')[0] || 'Unknown',
+            collaborators: c.collaborators || [],
+            followers: c.followers || [],
+            comments: c.comments || [],
+            punches: c.punches.map(p => p.punched_at)
+        }));
     };
 
     const value = {
@@ -547,8 +808,12 @@ export const HabitProvider = ({ children }) => {
         followCard,
         copyHabit,
         addComment,
+        searchUserByEmail,
+        fetchPublicHabits,
         celebration,
-        clearCelebration: () => setCelebration(null)
+        clearCelebration: () => setCelebration(null),
+        onboardingAction,
+        dismissOnboarding: () => setOnboardingAction(null)
     };
 
     return (

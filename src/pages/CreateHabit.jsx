@@ -4,7 +4,8 @@ import { useHabits } from '../context/HabitContext';
 import { useAuth } from '../context/AuthContext';
 import { ICONS, JEWEL_TONES, SOUND_OPTIONS } from '../constants';
 import { supabase } from '../utils/supabaseClient';
-import { Copy, Mail, Lightbulb } from 'lucide-react';
+import { playSound } from '../utils/sound';
+import { Copy, Mail, Lightbulb, UserPlus } from 'lucide-react';
 import './CreateHabit.css';
 
 const CATEGORY_SUGGESTIONS = ['Health', 'Creativity', 'Learning', 'Social', 'Work'];
@@ -30,9 +31,42 @@ const CreateHabit = () => {
 
     const [collaborators, setCollaborators] = useState([]);
     const [inviteUsername, setInviteUsername] = useState('');
-    const [shareMsg, setShareMsg] = useState('');
-    const [showInviteBtn, setShowInviteBtn] = useState(false);
-    const [inviteLink, setInviteLink] = useState('');
+    const [pendingCollaborators, setPendingCollaborators] = useState([]); // Array of { email, status, displayName }
+    const { searchUserByEmail } = useHabits();
+
+    const handleAddCollaborator = async () => {
+        if (!inviteUsername.trim()) return;
+        const email = inviteUsername.trim();
+
+        // Prevent duplicates
+        if (pendingCollaborators.some(p => p.email.toLowerCase() === email.toLowerCase())) {
+            alert('User already in invite list');
+            setInviteUsername('');
+            return;
+        }
+
+        const result = await searchUserByEmail(email);
+
+        if (result.user) {
+            setPendingCollaborators(prev => [...prev, {
+                email: email,
+                status: 'found',
+                displayName: result.user.display_name,
+                userId: result.user.id
+            }]);
+        } else {
+            setPendingCollaborators(prev => [...prev, {
+                email: email,
+                status: 'invite_needed',
+                displayName: email
+            }]);
+        }
+        setInviteUsername('');
+    };
+
+    const removePendingCollaborator = (index) => {
+        setPendingCollaborators(prev => prev.filter((_, i) => i !== index));
+    };
 
     useEffect(() => {
         if (id) {
@@ -108,15 +142,41 @@ const CreateHabit = () => {
         setShowInviteBtn(false);
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.title || !formData.reward) return;
 
+        let habitId = id;
+
         if (id) {
-            updateHabit(id, formData);
+            await updateHabit(id, formData);
         } else {
-            addHabit(formData);
+            // New Habit Creation
+            const newHabit = await addHabit(formData);
+            if (newHabit) habitId = newHabit.id;
         }
+
+        // Handle Pending Collaborators (for both new and editing)
+        if (habitId && formData.mode === 'collab' && pendingCollaborators.length > 0) {
+            for (const collaborator of pendingCollaborators) {
+                await shareHabit(habitId, collaborator.email);
+            }
+
+            // Check for "invite needed" users to show final status
+            const guests = pendingCollaborators.filter(c => c.status === 'invite_needed');
+            if (guests.length > 0) {
+                // If there were guests, we should probably redirect to the share page or show a modal
+                // For now, let's alert or specific flow
+                // Actually, standard flow is: create -> redirect to Dashboard.
+                // The user said: "invite by sharing this card with them after saving!"
+                // So we just let them go to dashboard, and they can open the card to see the share button.
+                // Maybe a toast would be nice?
+                alert(`Card created! ${guests.length} users haven't joined yet. Don't forget to share the card link with them!`);
+            } else {
+                alert('Card created and collaborators added!');
+            }
+        }
+
         navigate('/');
     };
 
@@ -168,6 +228,19 @@ const CreateHabit = () => {
                             Collab
                         </label>
                     </div>
+                    {/* Private Toggle - Only for Personal Mode */}
+                    {formData.mode === 'personal' && (
+                        <div style={{ marginTop: '0.8rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', color: '#555' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={formData.isPrivate}
+                                    onChange={(e) => setFormData({ ...formData, isPrivate: e.target.checked })}
+                                />
+                                Make this card Private (Hidden from public profile)
+                            </label>
+                        </div>
+                    )}
                 </div>
 
                 <div className="form-group">
@@ -197,7 +270,7 @@ const CreateHabit = () => {
                 </div>
 
                 <div className="form-group">
-                    <label>Reward {formData.mode === 'collab' ? '(optional for group)' : ''}</label>
+                    <label>Reward</label>
                     <input
                         type="text"
                         placeholder="e.g. Buy a new book"
@@ -252,12 +325,18 @@ const CreateHabit = () => {
                     <label>Celebration Sound</label>
                     <select
                         value={formData.sound}
-                        onChange={e => setFormData({ ...formData, sound: e.target.value })}
+                        onChange={e => {
+                            setFormData({ ...formData, sound: e.target.value });
+                            playSound(e.target.value);
+                        }}
                     >
                         {SOUND_OPTIONS.map(opt => (
-                            <option key={opt.id} value={opt.id}>{opt.label}</option>
+                            <option key={opt.id} value={opt.id} onClick={() => playSound(opt.id)}>
+                                {opt.label} (Click to Preview)
+                            </option>
                         ))}
                     </select>
+
                 </div>
 
                 <div className="form-group">
@@ -291,85 +370,91 @@ const CreateHabit = () => {
                     />
                 </div>
 
-                {formData.mode === 'collab' && id && (
-                    <div className="form-group" style={{ borderTop: '1px solid #eee', paddingTop: '1rem' }}>
-                        <label>Collaboration</label>
-                        <p style={{ fontSize: '0.8rem', color: '#555', marginBottom: '0.5rem' }}>
-                            Invite others by their **Display Name or Email**, or share the **Join Link** found on the shared card page.
-                        </p>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <input
-                                type="text"
-                                placeholder="Display Name or Email"
-                                value={inviteUsername}
-                                onChange={e => setInviteUsername(e.target.value)}
-                                style={{ flex: 1 }}
-                            />
-                            <button
-                                type="button"
-                                onClick={handleShare}
-                                className="button-secondary"
-                                style={{ padding: '0.5rem 1rem' }}
-                            >
-                                Invite
-                            </button>
-                        </div>
-                        {shareMsg && (
-                            <div style={{ marginTop: '0.5rem' }}>
-                                <p style={{
-                                    fontSize: '0.85rem',
-                                    color: shareMsg.includes('hasn\'t') ? '#4a90e2' : shareMsg.includes('Error') ? '#ff5252' : '#4CAF50',
-                                    margin: '6px 0',
-                                    fontWeight: '500'
-                                }}>
-                                    {shareMsg}
-                                </p>
-                                {showInviteBtn && (
-                                    <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <p style={{ fontSize: '0.75rem', color: '#666', background: 'rgba(255,255,255,0.5)', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}>
-                                            {inviteLink}
-                                        </p>
-                                        <button
-                                            type="button"
-                                            onClick={copyInviteLink}
-                                            className="button-secondary"
-                                            style={{
-                                                fontSize: '0.8rem',
-                                                padding: '8px 16px',
-                                                background: '#4CAF50',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '8px',
-                                                cursor: 'pointer',
-                                                fontWeight: 'bold',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: '8px',
-                                                width: '100%'
-                                            }}
-                                        >
-                                            <Copy size={16} /> Copy Invite Link & Send
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                {
+                    formData.mode === 'collab' && (
+                        <div className="form-group" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
+                            <label>Add Collaborators</label>
+                            <p style={{ fontSize: '0.8rem', color: '#aaa', marginBottom: '0.5rem' }}>
+                                Search for friends by <b>email</b> or <b>display name</b> to add them.
+                            </p>
 
-                        {collaborators.length > 0 && (
-                            <div className="collaborators-list" style={{ marginTop: '1rem' }}>
-                                <h4>Collaborators:</h4>
-                                <ul style={{ listStyle: 'none', padding: 0 }}>
-                                    {collaborators.map(c => (
-                                        <li key={c.userId} style={{ padding: '0.5rem', background: '#f9f9f9', marginBottom: '4px', borderRadius: '4px' }}>
-                                            {c.username} ({c.role})
-                                        </li>
-                                    ))}
-                                </ul>
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem' }}>
+                                <input
+                                    type="text"
+                                    placeholder="Enter email or display name..."
+                                    value={inviteUsername}
+                                    onChange={e => setInviteUsername(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleAddCollaborator();
+                                        }
+                                    }}
+                                    style={{ flex: 1 }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleAddCollaborator}
+                                    className="button-secondary"
+                                    style={{ padding: '0.5rem 1rem', whiteSpace: 'nowrap' }}
+                                    disabled={!inviteUsername}
+                                >
+                                    <UserPlus size={16} style={{ marginRight: '4px' }} /> Add
+                                </button>
                             </div>
-                        )}
-                    </div>
-                )}
+
+                            {/* Pending List */}
+                            {pendingCollaborators.length > 0 && (
+                                <div className="pending-collaborators" style={{ marginBottom: '1rem' }}>
+                                    <h4 style={{ fontSize: '0.9rem', marginBottom: '0.5rem', color: '#fff' }}>Will be invited:</h4>
+                                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                                        {pendingCollaborators.map((c, i) => (
+                                            <li key={i} style={{
+                                                padding: '0.6rem',
+                                                background: 'rgba(255,255,255,0.1)',
+                                                marginBottom: '6px',
+                                                borderRadius: '8px',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center'
+                                            }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    <span style={{ fontWeight: 500 }}>{c.displayName || c.email}</span>
+                                                    <span style={{ fontSize: '0.75rem', color: c.status === 'found' ? '#4CAF50' : '#ffab40' }}>
+                                                        {c.status === 'found'
+                                                            ? '✅ User found - Will be added immediately'
+                                                            : '⚠️ Not on Punch Buddy - Invite link will be generated after save'}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removePendingCollaborator(i)}
+                                                    style={{ background: 'none', border: 'none', color: '#ff5252', cursor: 'pointer', padding: '4px' }}
+                                                >
+                                                    ✕
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {/* Existing Collaborators (if editing) */}
+                            {collaborators.length > 0 && (
+                                <div className="collaborators-list" style={{ marginTop: '1rem' }}>
+                                    <h4 style={{ fontSize: '0.9rem', marginBottom: '0.5rem', color: '#ddd' }}>Current Collaborators:</h4>
+                                    <ul style={{ listStyle: 'none', padding: 0 }}>
+                                        {collaborators.map(c => (
+                                            <li key={c.userId} style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.05)', marginBottom: '4px', borderRadius: '4px', fontSize: '0.9rem' }}>
+                                                {c.username}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    )
+                }
 
                 <div className="form-actions">
                     <button type="button" onClick={() => navigate('/')} className="btn-cancel">
@@ -379,8 +464,8 @@ const CreateHabit = () => {
                         {id ? 'Save Changes' : 'Create Card'}
                     </button>
                 </div>
-            </form>
-        </div>
+            </form >
+        </div >
     );
 };
 

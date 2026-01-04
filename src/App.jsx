@@ -45,17 +45,21 @@ import { initAudio } from './utils/sound';
 function App() {
     React.useEffect(() => {
         const unlockAudio = () => {
-            initAudio();
-            window.removeEventListener('click', unlockAudio);
-            window.removeEventListener('touchstart', unlockAudio);
+            const state = initAudio();
+            // Only remove listeners if we successfully got into a running state
+            // (or if the browser claims it's running)
+            if (state === 'running') {
+                ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'].forEach(event =>
+                    window.removeEventListener(event, unlockAudio)
+                );
+            }
         };
 
-        window.addEventListener('click', unlockAudio);
-        window.addEventListener('touchstart', unlockAudio);
+        const events = ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'];
+        events.forEach(event => window.addEventListener(event, unlockAudio));
 
         return () => {
-            window.removeEventListener('click', unlockAudio);
-            window.removeEventListener('touchstart', unlockAudio);
+            events.forEach(event => window.removeEventListener(event, unlockAudio));
         };
     }, []);
 

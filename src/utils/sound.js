@@ -14,19 +14,38 @@ const getContext = () => {
 
 // Hack to unlock audio on iOS/PWA on first interaction
 export const initAudio = () => {
-    console.log('[Audio] Attempting to unlock AudioContext...');
     const context = getContext();
-    if (context.state === 'suspended') {
-        context.resume().then(() => console.log('[Audio] Context resumed!'));
+
+    // Always call resume on interaction
+    if (context.state !== 'running') {
+        context.resume().then(() => {
+            console.log('[Audio] Context resumed via explicit resume()');
+        }).catch(err => console.warn('[Audio] Resume failed:', err));
     }
 
-    // Play a silent buffer to wake up the audio engine
-    const buffer = context.createBuffer(1, 1, 22050);
-    const source = context.createBufferSource();
-    source.buffer = buffer;
-    source.connect(context.destination);
-    source.start(0);
-    console.log('[Audio] Silent buffer played (Unlock complete).');
+    // Play a brief silent oscillator - often more effective than a buffer on old iOS
+    try {
+        const osc = context.createOscillator();
+        const gain = context.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.value = 440; // Audible freq but silenced by gain
+
+        gain.gain.value = 0.0001; // Nearly silent but technically "playing"
+
+        osc.connect(gain);
+        gain.connect(context.destination);
+
+        const now = context.currentTime;
+        osc.start(now);
+        osc.stop(now + 0.1);
+
+        console.log('[Audio] Wake-up oscillator played.');
+    } catch (e) {
+        console.error('[Audio] Wake-up failed:', e);
+    }
+
+    return context.state;
 };
 
 const getNoiseBuffer = (context) => {

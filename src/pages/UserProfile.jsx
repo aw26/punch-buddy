@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useHabits } from '../context/HabitContext';
+import { supabase } from '../utils/supabaseClient';
 import PunchCard from '../components/PunchCard/PunchCard';
 import { User, ArrowLeft } from 'lucide-react';
 
@@ -9,6 +10,7 @@ const UserProfile = () => {
     const { fetchPublicHabits, searchUserByEmail } = useHabits();
     const [publicHabits, setPublicHabits] = useState([]);
     const [profileName, setProfileName] = useState('User');
+    const [avatarUrl, setAvatarUrl] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -20,14 +22,20 @@ const UserProfile = () => {
                 const habits = await fetchPublicHabits(userId);
                 setPublicHabits(habits);
 
-                // 2. We might want to fetch display name too if not available
-                // Ideally this should be a separate little fetch or passed in location state
-                // For now, let's grab it from the first habit if available, or just say "User Profile"
-                if (habits.length > 0) {
-                    // Check collaborators/followers details as a slightly hacky way? 
-                    // Or better: Just do a profile fetch by ID which we don't strictly have in context yet publically
-                    // Actually, we can assume the user landed here from search, so maybe we pass name in state?
-                    // Let's rely on the cards for now or generic.
+                // 2. Fetch profile display name
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('display_name, avatar_url')
+                    .eq('id', userId)
+                    .single();
+
+                if (!profileError && profile) {
+                    setProfileName(profile.display_name);
+                    setAvatarUrl(profile.avatar_url);
+                } else if (habits.length > 0) {
+                    setProfileName(habits[0].creator_name || 'User');
+                } else {
+                    setProfileName('User');
                 }
 
             } catch (error) {
@@ -47,11 +55,29 @@ const UserProfile = () => {
             </Link>
 
             <div className="profile-header" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-                <div style={{ background: '#f0f0f0', borderRadius: '50%', padding: '1rem' }}>
-                    <User size={32} color="#666" />
+                <div style={{
+                    width: '80px',
+                    height: '80px',
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    background: '#f0f0f0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '2px solid #eee'
+                }}>
+                    {avatarUrl ? (
+                        <img
+                            src={avatarUrl}
+                            alt={profileName}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                    ) : (
+                        <User size={32} color="#666" />
+                    )}
                 </div>
                 <div>
-                    <h2 style={{ margin: 0 }}>User Profile</h2>
+                    <h2 style={{ margin: 0 }}>{profileName}</h2>
                     <p style={{ margin: 0, color: '#888' }}>{userId ? 'Viewing Public Cards' : ''}</p>
                 </div>
             </div>

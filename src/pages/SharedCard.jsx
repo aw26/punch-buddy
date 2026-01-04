@@ -118,7 +118,7 @@ const SharedCard = () => {
                             <h2>You're Invited!</h2>
                             <span className="sparkle">✨</span>
                         </div>
-                        <p className="invite-context" style={{ fontSize: '2.2rem', lineHeight: '1.3', margin: 0 }}>
+                        <p className="invite-context" style={{ fontSize: '1.8rem', lineHeight: '1.4', margin: 0 }}>
                             <Link to={`/profile/${habit.creatorId}`} className="highlighter" style={{ color: '#ffd700', textDecoration: 'underline', textUnderlineOffset: '4px' }}>
                                 {habit.creatorName}
                             </Link> invites you to check out their habit:

@@ -111,7 +111,22 @@ const SharedCard = () => {
     return (
         <div className="shared-page">
             <div className="shared-header">
-                <h2>{id ? 'Shared Punch Card' : 'Snapshot Punch Card'}</h2>
+                {id ? (
+                    <>
+                        <div className="invite-title-row">
+                            <span className="sparkle">✨</span>
+                            <h2>You're Invited!</h2>
+                            <span className="sparkle">✨</span>
+                        </div>
+                        <p className="invite-context" style={{ fontSize: '2.2rem', lineHeight: '1.3', margin: 0 }}>
+                            <Link to={`/profile/${habit.creatorId}`} className="highlighter" style={{ color: '#ffd700', textDecoration: 'underline', textUnderlineOffset: '4px' }}>
+                                {habit.creatorName}
+                            </Link> invites you to check out their habit:
+                        </p>
+                    </>
+                ) : (
+                    <h2>Snapshot Punch Card</h2>
+                )}
             </div>
 
             {/* If data (snapshot), make read-only. If id (live), interactive if permitted */}
@@ -225,7 +240,7 @@ const SharedCard = () => {
                     </>
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 

@@ -142,6 +142,7 @@ const CreateHabit = () => {
         setShowInviteBtn(false);
     };
 
+    // Handle form submission
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.title || !formData.reward) return;

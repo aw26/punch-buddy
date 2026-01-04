@@ -40,7 +40,25 @@ const AppContent = () => {
     );
 };
 
+import { initAudio } from './utils/sound';
+
 function App() {
+    React.useEffect(() => {
+        const unlockAudio = () => {
+            initAudio();
+            window.removeEventListener('click', unlockAudio);
+            window.removeEventListener('touchstart', unlockAudio);
+        };
+
+        window.addEventListener('click', unlockAudio);
+        window.addEventListener('touchstart', unlockAudio);
+
+        return () => {
+            window.removeEventListener('click', unlockAudio);
+            window.removeEventListener('touchstart', unlockAudio);
+        };
+    }, []);
+
     return (
         <Router>
             <AuthProvider>

@@ -5,10 +5,28 @@ let noiseBuffer = null;
 
 const getContext = () => {
     if (!ctx) {
+        // Handle iOS audio context naming
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         ctx = new AudioContext();
     }
     return ctx;
+};
+
+// Hack to unlock audio on iOS/PWA on first interaction
+export const initAudio = () => {
+    console.log('[Audio] Attempting to unlock AudioContext...');
+    const context = getContext();
+    if (context.state === 'suspended') {
+        context.resume().then(() => console.log('[Audio] Context resumed!'));
+    }
+
+    // Play a silent buffer to wake up the audio engine
+    const buffer = context.createBuffer(1, 1, 22050);
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(context.destination);
+    source.start(0);
+    console.log('[Audio] Silent buffer played (Unlock complete).');
 };
 
 const getNoiseBuffer = (context) => {
@@ -73,8 +91,12 @@ const playNoise = (duration = 0.1, volume = 0.2) => {
 };
 
 export const playSound = (soundId) => {
-    if (localStorage.getItem('punchtime_muted') === 'true') return;
+    if (localStorage.getItem('punchtime_muted') === 'true') {
+        console.log(`[Audio] Blocked sound '${soundId}' because MUTE is on.`);
+        return;
+    }
 
+    console.log(`[Audio] Playing sound: ${soundId}`);
     const context = getContext();
     if (context.state === 'suspended') {
         context.resume().catch(err => console.error(err));

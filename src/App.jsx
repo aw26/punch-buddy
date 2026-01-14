@@ -44,22 +44,31 @@ import { initAudio } from './utils/sound';
 
 function App() {
     React.useEffect(() => {
+        const events = ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'];
+
         const unlockAudio = () => {
             const state = initAudio();
             // Only remove listeners if we successfully got into a running state
-            // (or if the browser claims it's running)
             if (state === 'running') {
-                ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'].forEach(event =>
-                    window.removeEventListener(event, unlockAudio)
-                );
+                events.forEach(event => window.removeEventListener(event, unlockAudio));
             }
         };
 
-        const events = ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'];
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                console.log('App visible, waking up audio engine...');
+                initAudio();
+                // Re-attach listeners in case we need another interaction to unlock
+                events.forEach(event => window.addEventListener(event, unlockAudio));
+            }
+        };
+
         events.forEach(event => window.addEventListener(event, unlockAudio));
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
             events.forEach(event => window.removeEventListener(event, unlockAudio));
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, []);
 

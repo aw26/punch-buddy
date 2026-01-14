@@ -2,13 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] - 2026-01-14
+## [0.6.0] - 2026-01-14
 
 ### Added
 -   **Collaborative Celebration Flow**:
     -   Completed collaborative cards now display a "Click to Celebrate! 🎉" button instead of auto-archiving.
     -   Celebration Overlay now includes a "Reward Reveal" (Title + Reward text) and visible Close button.
     -   Archiving is now an explicit secondary action ("Archive for everyone").
+-   **PWA Audio Fix**: Added logic to wake up the sound engine every time the app returns to the foreground (fixes sound dying after minimizing app on iOS).
 -   **Documentation**: Detailed `PRODUCT_SPEC.md` and `TECHNICAL_SPEC.md`.
 
 ### Changed

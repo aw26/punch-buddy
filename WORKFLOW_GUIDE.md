@@ -19,8 +19,12 @@ Before touching code, define *what* we are building.
 *   **Build Test**: Run `npm run build` in your terminal.
     *   *Why?* It acts as a "syntax spellchecker". If there's a typo, the build fails here (cheap) instead of in production (expensive).
 
-## 4. Commit (The "Save Point")
-Once verified, save your progress.
+## 4. Document (The "Logbook")
+*   **Update `CHANGELOG.md`**: Before you commit, add a line about what you fixed/added under the `[Unreleased]` or new Version section.
+*   **Why?**: Future-you will thank present-you when trying to figure out "When did we fix that bug?".
+
+## 5. Commit (The "Save Point")
+Once verified and documented, save your progress.
 *   `git add .` (Stage files)
 *   `git commit -m "feat: meaningful message"`
 *   *Tip*: Commit often. "feat: add button" is better than "feat: add button and fixing login and huge refactor".

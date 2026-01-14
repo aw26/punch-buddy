@@ -91,7 +91,7 @@
 
 .celebration-content h1 {
     font-family: 'Lilita One', cursive;
-    font-size: clamp(3rem, 13vw, 6rem);
+    font-size: clamp(2.5rem, 11vw, 6rem);
     font-weight: 400;
     /* Lilita One is single weight */
     margin-bottom: 2.5rem;
@@ -111,8 +111,9 @@
     filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.4)) drop-shadow(0 0 20px rgba(224, 11, 95, 0.6));
 
     animation: punchyArrival 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) both, shimmerScroll 4s linear infinite;
-    word-break: break-word;
-    /* Ensure very long words wrap if absolutely needed, though clamp usually handles it */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
 }
 
 @keyframes punchyArrival {

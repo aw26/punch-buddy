@@ -124,6 +124,8 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    box-sizing: border-box;
+    /* Crucial for width: 100% + padding */
 }
 
 .btn-primary {

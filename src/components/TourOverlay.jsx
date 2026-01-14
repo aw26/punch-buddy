@@ -5,6 +5,7 @@ const TourOverlay = ({ steps, onComplete, onSkip }) => {
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
     const [position, setPosition] = useState(null);
     const [targetRect, setTargetRect] = useState(null);
+    const [placement, setPlacement] = useState('bottom'); // 'bottom' or 'top'
 
     const currentStep = steps[currentStepIndex];
 
@@ -24,25 +25,46 @@ const TourOverlay = ({ steps, onComplete, onSkip }) => {
                     height: rect.height + (PADDING * 2),
                 });
 
-                // Simple positioning logic (prefer bottom, fallback to top/center)
-                // This can be enhanced
-                let top = rect.bottom + window.scrollY + 10;
-                let left = rect.left + window.scrollX + (rect.width / 2) - 150; // Center 300px wide tooltip
+                // Responsive width calc
+                const tooltipWidth = Math.min(window.innerWidth * 0.9, 300);
 
-                // Boundary checks (basic)
-                if (left < 10) left = 10;
-                if (left + 300 > window.innerWidth) left = window.innerWidth - 310;
+                // Positioning logic
+                let top = rect.bottom + window.scrollY + 10;
+                let left = rect.left + window.scrollX + (rect.width / 2) - (tooltipWidth / 2);
+                let newPlacement = 'bottom';
+
+                // Smart Vertical Positioning (Flip if needed)
+                const spaceBelow = window.innerHeight - rect.bottom;
+                const spaceAbove = rect.top;
+
+                // If detailed height unknown, assume ~200px. 
+                // If tight below (< 220px) and plenty above (> 220px), flip.
+                if (spaceBelow < 220 && spaceAbove > 220) {
+                    newPlacement = 'top';
+                    // Position at top of target. CSS transform will handle the -100% height offset if we can,
+                    // or we just position it manually using bottom-up logic?
+                    // Easiest with fixed height, but height is dynamic.
+                    // Solution: Use bottom-aligned absolute positioning? 
+                    // Let's pass 'top' coord as the anchor point, and handle offset in CSS/style.
+                    top = rect.top + window.scrollY - 10;
+                }
+
+                // Boundary checks for Left
+                const PADDING_X = 10;
+                if (left < PADDING_X) left = PADDING_X;
+                if (left + tooltipWidth > window.innerWidth) left = window.innerWidth - tooltipWidth - PADDING_X;
 
                 setPosition({ top, left });
+                setPlacement(newPlacement);
             } else {
-                // If target not found, maybe just center it or skip?
-                // For now, center if targeted specific element but unavailable
+                // Fallback center
                 setPosition({
                     top: window.innerHeight / 2 - 100,
-                    left: window.innerWidth / 2 - 150,
+                    left: window.innerWidth / 2 - 150, // This might be off if width != 300
                     isFallback: true
                 });
                 setTargetRect(null);
+                setPlacement('bottom');
             }
         };
 
@@ -70,12 +92,7 @@ const TourOverlay = ({ steps, onComplete, onSkip }) => {
 
     return (
         <div className="tour-overlay-container">
-            {/* Backdrop with hole logic is complex for simple CSS.
-                We'll use a semi-transparent overlay and a high z-index target highlight if possible,
-                Or just a spotlight effect using box-shadow on the highlight box.
-            */}
-
-            {/* The Highlight Box */}
+            {/* Highlight Box */}
             {targetRect && (
                 <div
                     className="tour-highlight-box"
@@ -88,14 +105,20 @@ const TourOverlay = ({ steps, onComplete, onSkip }) => {
                 />
             )}
 
-            {/* The Tooltip */}
+            {/* Tooltip */}
             <div
                 className="tour-tooltip"
                 style={{
                     top: position.top,
                     left: position.left,
+                    // If placement is top, shift up by 100% manually via transform
+                    transform: placement === 'top' ? 'translateY(-100%)' : 'none'
                 }}
             >
+                <button className="tour-close-btn" onClick={onSkip} aria-label="Close tour">
+                    ✕
+                </button>
+
                 <div className="tour-content">
                     <h4>{currentStep.title}</h4>
                     <p>{currentStep.content}</p>

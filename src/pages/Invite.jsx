@@ -37,7 +37,7 @@ const Invite = () => {
                 // Fetch card/habit details
                 const { data: card, error } = await supabase
                     .from('cards')
-                    .select('*, creator:creator_id(display_name, email)')
+                    .select('*, punches(punched_at), creator:creator_id(display_name, email)')
                     .eq('id', cardId)
                     .single();
 
@@ -52,7 +52,7 @@ const Invite = () => {
                     reward: card.reward,
                     icon: card.icon,
                     color: card.color,
-                    punches: [], // Preview empty
+                    punches: card.punches ? card.punches.map(p => p.punched_at) : [],
                     punchCount: card.punch_count || 10,
                     mode: card.mode,
                     creatorId: card.creator_id,

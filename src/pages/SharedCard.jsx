@@ -14,7 +14,7 @@ const SharedCard = () => {
     const [error, setError] = useState('');
 
     // For live shared cards
-    const { habits, loading, joinCollab, followCard, copyHabit } = useHabits();
+    const { habits, loading, joinCollab, leaveCollab, followCard, copyHabit } = useHabits();
     const { user } = useAuth();
     const navigate = useNavigate();
 
@@ -137,16 +137,28 @@ const SharedCard = () => {
             <div className="shared-actions">
                 {/* UN-AUTHENTICATED VIEW: Single "Login to Follow & Cheer" Action */}
                 {!user ? (
-                    <button
-                        className="action-btn btn-primary" // Prominent button
-                        onClick={() => {
-                            // Use returnTo with the full hash path (e.g., /share?id=...)
-                            const currentPath = window.location.hash.slice(1); // Remove the #
-                            navigate(`/login?returnTo=${encodeURIComponent(currentPath)}`);
-                        }}
-                    >
-                        <span>👋</span> Login to Follow & Cheer
-                    </button>
+                    <>
+                        {/* Primary Action: Create New */}
+                        <Link
+                            to="/new"
+                            className="action-btn btn-primary"
+                            style={{ textDecoration: 'none', justifyContent: 'center', marginBottom: '1rem' }}
+                        >
+                            <span>✨</span> Create your own card
+                        </Link>
+
+                        {/* Secondary Action: Login */}
+                        <button
+                            className="action-btn btn-secondary"
+                            onClick={() => {
+                                // Use returnTo with the full hash path (e.g., /share?id=...)
+                                const currentPath = window.location.hash.slice(1); // Remove the #
+                                navigate(`/login?returnTo=${encodeURIComponent(currentPath)}`);
+                            }}
+                        >
+                            <span>👋</span> Login to Follow & Cheer
+                        </button>
+                    </>
                 ) : (
                     /* AUTHENTICATED VIEW: Full Actions */
                     <>
@@ -154,9 +166,24 @@ const SharedCard = () => {
                         {habit.mode === 'collab' && (
                             <>
                                 {isCollaborator ? (
-                                    <button className="action-btn btn-primary" disabled>
-                                        <span>✅</span> Joined as Collaborator
-                                    </button>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <button className="action-btn btn-primary" disabled>
+                                            <span>✅</span> Joined as Collaborator
+                                        </button>
+                                        <button
+                                            className="action-btn btn-text"
+                                            style={{ color: '#ff4d4f', fontSize: '0.8rem', alignSelf: 'center', marginTop: '-0.5rem' }}
+                                            onClick={async () => {
+                                                if (window.confirm('Are you sure you want to leave this collaboration?')) {
+                                                    const { error } = await leaveCollab(habit.id);
+                                                    if (!error) navigate('/');
+                                                    else alert(error);
+                                                }
+                                            }}
+                                        >
+                                            Leave Collab
+                                        </button>
+                                    </div>
                                 ) : (
                                     <button
                                         className="action-btn btn-primary"

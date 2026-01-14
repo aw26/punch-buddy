@@ -1,4 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+// Version: 1.0.1
+// Date: 2026-01-12
+// Notes: Fixed ReferenceError and Infinite Loading. Added version header.
+
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { loadHabits, saveHabits } from '../utils/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './AuthContext';
@@ -22,6 +26,104 @@ export const HabitProvider = ({ children }) => {
     const migratedUsers = React.useRef(new Set());
     const [onboardingAction, setOnboardingAction] = useState(null); // { type: 'join'|'follow'|'new', cardId }
 
+    const isMounted = React.useRef(true);
+
+    useEffect(() => {
+        isMounted.current = true;
+        return () => { isMounted.current = false; };
+    }, []);
+
+    const clearCelebration = () => setCelebration(null);
+
+    const fetchHabits = useCallback(async () => {
+        if (!user?.id) {
+            // Guest mode: LocalStorage
+            const localHabits = loadHabits();
+            if (isMounted.current) {
+                setHabits(localHabits);
+                setLoading(false);
+            }
+            return;
+        }
+
+        // Authenticated: Supabase
+        try {
+            // Step 1: Get cards I created
+            const { data: created, error: e1 } = await supabase
+                .from('cards')
+                .select('id')
+                .eq('creator_id', user.id);
+            if (e1) throw e1;
+
+            // Step 2: Get cards I am a collaborator on
+            const { data: collab, error: e2 } = await supabase
+                .from('collaborators')
+                .select('card_id')
+                .eq('user_id', user.id);
+            if (e2) throw e2;
+
+            // Step 3: Get cards I follow
+            const { data: following, error: e3 } = await supabase
+                .from('followers')
+                .select('card_id')
+                .eq('user_id', user.id);
+            if (e3) throw e3;
+
+            // Combine IDs
+            const myCardIds = new Set([
+                ...created.map(c => c.id),
+                ...collab.map(c => c.card_id),
+                ...following.map(c => c.card_id)
+            ]);
+
+            if (myCardIds.size === 0) {
+                if (isMounted.current) {
+                    setHabits([]);
+                    setLoading(false);
+                }
+                return;
+            }
+
+            // Step 4: Fetch details for these specific cards
+            const { data: cards, error } = await supabase
+                .from('cards')
+                .select('*, punches(punched_at), collaborators(user_id, profiles(display_name)), followers(user_id, profiles(display_name)), comments(*, profiles(display_name)), creator:creator_id(display_name, email)')
+                .in('id', Array.from(myCardIds));
+
+            if (error) throw error;
+
+            // Transform to internal shape
+            const formatted = cards.map(c => ({
+                id: c.id,
+                createdAt: c.created_at,
+                title: c.habit,
+                reward: c.reward || '',
+                icon: c.icon,
+                color: c.color,
+                sound: c.celebration_sound,
+                expiresAt: c.expiration,
+                category: c.category || '',
+                archived: c.archived,
+                mode: c.mode,
+                punchCount: parseInt(c.punch_count, 10) || 10,
+                creatorId: c.creator_id,
+                creatorName: c.creator?.display_name || c.creator?.email?.split('@')[0] || 'Unknown',
+                collaborators: c.collaborators || [],
+                followers: c.followers || [],
+                comments: c.comments || [],
+                punches: c.punches.map(p => p.punched_at) // Array of ISO strings
+            }));
+
+            if (isMounted.current) {
+                setHabits(formatted);
+                setLoading(false);
+            }
+        } catch (err) {
+            console.error('Error loading Supabase data:', err);
+            if (isMounted.current) setLoading(false);
+        }
+    }, [user?.id, isMounted]);
+
     // Clear migration history on logout so re-logins can migrate new data
     useEffect(() => {
         if (!user) {
@@ -31,8 +133,6 @@ export const HabitProvider = ({ children }) => {
 
     // Fetch habits handling both Local and Remote
     useEffect(() => {
-        let mounted = true;
-
         const ensureProfile = async (u) => {
             if (!u) return;
             const { data } = await supabase.from('profiles').select('id').eq('id', u.id).maybeSingle();
@@ -128,95 +228,6 @@ export const HabitProvider = ({ children }) => {
             }
         };
 
-        const fetchHabits = async () => {
-            if (!user) {
-                // Guest mode: LocalStorage
-                const localHabits = loadHabits();
-                if (mounted) {
-                    setHabits(localHabits);
-                    setLoading(false);
-                }
-                return;
-            }
-
-            // Authenticated: Supabase
-            try {
-                // Step 1: Get cards I created
-                const { data: created, error: e1 } = await supabase
-                    .from('cards')
-                    .select('id')
-                    .eq('creator_id', user.id);
-                if (e1) throw e1;
-
-                // Step 2: Get cards I am a collaborator on
-                const { data: collab, error: e2 } = await supabase
-                    .from('collaborators')
-                    .select('card_id')
-                    .eq('user_id', user.id);
-                if (e2) throw e2;
-
-                // Step 3: Get cards I follow
-                const { data: following, error: e3 } = await supabase
-                    .from('followers')
-                    .select('card_id')
-                    .eq('user_id', user.id);
-                if (e3) throw e3;
-
-                // Combine IDs
-                const myCardIds = new Set([
-                    ...created.map(c => c.id),
-                    ...collab.map(c => c.card_id),
-                    ...following.map(c => c.card_id)
-                ]);
-
-                if (myCardIds.size === 0) {
-                    if (mounted) {
-                        setHabits([]);
-                        setLoading(false);
-                    }
-                    return;
-                }
-
-                // Step 4: Fetch details for these specific cards
-                const { data: cards, error } = await supabase
-                    .from('cards')
-                    .select('*, punches(punched_at), collaborators(user_id, profiles(display_name)), followers(user_id, profiles(display_name)), comments(*, profiles(display_name)), creator:creator_id(display_name, email)')
-                    .in('id', Array.from(myCardIds));
-
-                if (error) throw error;
-
-                // Transform to internal shape
-                const formatted = cards.map(c => ({
-                    id: c.id,
-                    createdAt: c.created_at,
-                    title: c.habit,
-                    reward: c.reward || '',
-                    icon: c.icon,
-                    color: c.color,
-                    sound: c.celebration_sound,
-                    expiresAt: c.expiration,
-                    category: c.category || '',
-                    archived: c.archived,
-                    mode: c.mode,
-                    punchCount: parseInt(c.punch_count, 10) || 10,
-                    creatorId: c.creator_id,
-                    creatorName: c.creator?.display_name || c.creator?.email?.split('@')[0] || 'Unknown',
-                    collaborators: c.collaborators || [],
-                    followers: c.followers || [],
-                    comments: c.comments || [],
-                    punches: c.punches.map(p => p.punched_at) // Array of ISO strings
-                }));
-
-                if (mounted) {
-                    setHabits(formatted);
-                    setLoading(false);
-                }
-            } catch (err) {
-                console.error('Error loading Supabase data:', err);
-                if (mounted) setLoading(false);
-            }
-        };
-
 
 
         // ... (rest of provider code)
@@ -228,9 +239,14 @@ export const HabitProvider = ({ children }) => {
                 await migrateLocalHabits(user.id);
 
                 // Auto-join logic (URL or Cross-tab LocalStorage)
-                const params = new URLSearchParams(window.location.search);
-                const joinId = params.get('join') || localStorage.getItem('pending_join');
-                const followId = params.get('follow') || localStorage.getItem('pending_follow');
+                // Fix: HashRouter puts params after the hash. window.location.search is usually empty.
+                // We need to parse the hash part or use window.location.href.
+                // Since this runs outside a component, we can manual parse.
+                const hashParts = window.location.hash.split('?');
+                const queryParams = new URLSearchParams(hashParts[1] || '');
+
+                const joinId = queryParams.get('join') || localStorage.getItem('pending_join');
+                const followId = queryParams.get('follow') || localStorage.getItem('pending_follow');
 
                 if (joinId) {
                     console.log('Executing persistent auto-join for:', joinId);
@@ -286,7 +302,6 @@ export const HabitProvider = ({ children }) => {
         }
 
         return () => {
-            mounted = false;
             if (channel) supabase.removeChannel(channel);
         };
     }, [user?.id]);
@@ -598,7 +613,6 @@ export const HabitProvider = ({ children }) => {
     const shareHabit = async (cardId, targetIdentifier) => {
         if (!user) return { error: 'Must be logged in to share' };
         try {
-            // Find user by display_name or email
             // Find user by display_name or email (case insensitive)
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
@@ -672,6 +686,26 @@ export const HabitProvider = ({ children }) => {
 
         if (error) {
             // Rollback if needed (complex, but minor blink risk acceptable for optimistic UI)
+            return { error: error.message };
+        }
+        return { success: true };
+    };
+
+    const leaveCollab = async (cardId) => {
+        if (!user) return { error: 'Must be logged in to leave' };
+
+        // Optimistic: Remove from habits list
+        const previousHabits = [...habits];
+        setHabits(prev => prev.filter(h => h.id !== cardId));
+
+        const { error } = await supabase
+            .from('collaborators')
+            .delete()
+            .match({ card_id: cardId, user_id: user.id });
+
+        if (error) {
+            console.error('Error leaving collab:', error);
+            setHabits(previousHabits); // Rollback
             return { error: error.message };
         }
         return { success: true };
@@ -803,18 +837,22 @@ export const HabitProvider = ({ children }) => {
         archiveHabit,
         punchHabit,
         unpunchHabit,
+        addComment,
         shareHabit,
         joinCollab,
+        leaveCollab,
         followCard,
         copyHabit,
-        addComment,
         searchUserByEmail,
         fetchPublicHabits,
+        refreshHabits: fetchHabits,
+        migratedUsers,
         celebration,
-        clearCelebration: () => setCelebration(null),
-        onboardingAction,
-        dismissOnboarding: () => setOnboardingAction(null)
+        setCelebration,
+        clearCelebration,
+        onboardingAction
     };
+
 
     return (
         <HabitContext.Provider value={value}>

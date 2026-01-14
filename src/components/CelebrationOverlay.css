@@ -15,6 +15,28 @@
     backdrop-filter: blur(8px);
 }
 
+.close-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.4);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 2001;
+    transition: background 0.2s;
+}
+
+.close-btn:hover {
+    background: rgba(0, 0, 0, 0.7);
+}
+
 /* Airhorn/Pulse Effect */
 .celebration-overlay.horn {
     background: radial-gradient(circle, rgba(255, 50, 50, 0.4) 0%, rgba(0, 0, 0, 0.9) 70%);

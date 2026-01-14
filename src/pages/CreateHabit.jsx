@@ -34,6 +34,8 @@ const CreateHabit = () => {
     const [pendingCollaborators, setPendingCollaborators] = useState([]); // Array of { email, status, displayName }
     const { searchUserByEmail } = useHabits();
 
+    const [successData, setSuccessData] = useState(null); // { inviteLink: '' }
+
     const handleAddCollaborator = async () => {
         if (!inviteUsername.trim()) return;
         const email = inviteUsername.trim();
@@ -164,17 +166,26 @@ const CreateHabit = () => {
             }
 
             // Check for "invite needed" users to show final status
+            // Check for "invite needed" users to show final status
             const guests = pendingCollaborators.filter(c => c.status === 'invite_needed');
+
             if (guests.length > 0) {
-                // If there were guests, we should probably redirect to the share page or show a modal
-                // For now, let's alert or specific flow
-                // Actually, standard flow is: create -> redirect to Dashboard.
-                // The user said: "invite by sharing this card with them after saving!"
-                // So we just let them go to dashboard, and they can open the card to see the share button.
-                // Maybe a toast would be nice?
-                alert(`Card created! ${guests.length} users haven't joined yet. Don't forget to share the card link with them!`);
+                // Generate a generic invite link for the card
+                // Ideally we'd have specific ones, but for the popup we accept a general one 
+                // because we didn't generate per-user links in the backend yet (or we did but lost them).
+                // Actually, shareHabit returns an inviteLink for "notFound" users.
+                // We need to capture at least one.
+                // Re-running shareHabit is idempotent so we can generate one now for display? 
+                // Or we can construct it manually.
+                const baseUrl = window.location.href.split('#')[0].replace(/\/$/, "");
+                // Just make a general invite link (no email pre-fill) for the popup so they can dump it in a group chat
+                const generalLink = `${baseUrl}/#/invite?card=${habitId}`;
+
+                setSuccessData({ inviteLink: generalLink });
+                return; // Don't navigate yet
             } else {
-                alert('Card created and collaborators added!');
+                // All found users
+                // navigate('/'); 
             }
         }
 
@@ -183,6 +194,12 @@ const CreateHabit = () => {
 
     return (
         <div className="create-habit-page">
+            {successData && (
+                <SuccessOverlay
+                    inviteLink={successData.inviteLink}
+                    onClose={() => navigate('/')}
+                />
+            )}
             <h2>{id ? 'Edit Punch Card' : 'New Punch Card'}</h2>
 
             <form onSubmit={handleSubmit} className="habit-form">
@@ -376,13 +393,14 @@ const CreateHabit = () => {
                         <div className="form-group" style={{ borderTop: '1px solid #eee', paddingTop: '1rem' }}>
                             <label>Add Collaborators</label>
                             <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.5rem' }}>
-                                Search for friends by <b>email</b> or <b>display name</b> to add them.
+
+                                Search for friends by <b>email</b> to add them.
                             </p>
 
                             <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem' }}>
                                 <input
                                     type="text"
-                                    placeholder="Enter email or display name..."
+                                    placeholder="Enter email..."
                                     value={inviteUsername}
                                     onChange={e => setInviteUsername(e.target.value)}
                                     onKeyDown={e => {
@@ -468,6 +486,67 @@ const CreateHabit = () => {
                 </div>
             </form >
         </div >
+    );
+};
+
+const SuccessOverlay = ({ inviteLink, onClose }) => {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(inviteLink);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+            background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex',
+            alignItems: 'center', justifyContent: 'center', padding: '1rem'
+        }}>
+            <div style={{
+                background: 'white', padding: '2rem', borderRadius: '16px',
+                width: '100%', maxWidth: '400px', textAlign: 'center',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.3)', animation: 'popIn 0.3s ease'
+            }}>
+                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎉</div>
+                <h3 style={{ margin: '0 0 0.5rem 0', color: '#333' }}>Card Created!</h3>
+                <p style={{ color: '#666', marginBottom: '1.5rem', lineHeight: '1.4' }}>
+                    Invite your friends to collaborate with you!
+                </p>
+
+                <div style={{
+                    background: '#f5f5f5', padding: '1rem', borderRadius: '8px',
+                    wordBreak: 'break-all', fontSize: '0.85rem', color: '#555',
+                    marginBottom: '1.5rem', border: '1px solid #eee'
+                }}>
+                    {inviteLink}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                    <button
+                        onClick={handleCopy}
+                        className="btn-primary"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '0.8rem' }}
+                    >
+                        <Copy size={18} /> {copied ? 'Copied!' : 'Copy Link'}
+                    </button>
+                    <button
+                        onClick={onClose}
+                        className="btn-done"
+                        style={{ fontSize: '0.9rem', padding: '0.8rem' }}
+                    >
+                        Done
+                    </button>
+                </div>
+            </div>
+            <style>{`
+                @keyframes popIn {
+                    from { transform: scale(0.9); opacity: 0; }
+                    to { transform: scale(1); opacity: 1; }
+                }
+            `}</style>
+        </div>
     );
 };
 

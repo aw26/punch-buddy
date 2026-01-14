@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useHabits } from '../../context/HabitContext';
 import { useAuth } from '../../context/AuthContext';
 import { playSound } from '../../utils/sound';
-import { SquareArrowUp, Pencil, Trash2, Users, TriangleAlert, MessageSquare, Heart, Copy } from 'lucide-react';
+import { SquareArrowUp, Pencil, Trash2, Users, TriangleAlert, MessageSquare, Heart, Copy, PartyPopper } from 'lucide-react';
 import CommentsSection from './CommentsSection';
 import { supabase } from '../../utils/supabaseClient';
 import './PunchCard.css';
@@ -24,7 +24,7 @@ const PunchSlot = ({ index, filled, color, onClick, isComplete }) => {
 };
 
 const PunchCard = ({ habit, previewMode = false }) => {
-    const { punchHabit, deleteHabit, archiveHabit, habits, followCard, unpunchHabit, copyHabit } = useHabits();
+    const { punchHabit, deleteHabit, archiveHabit, habits, followCard, unpunchHabit, copyHabit, setCelebration } = useHabits();
     const { user } = useAuth();
     const [showComments, setShowComments] = React.useState(false);
     const [showCopyToast, setShowCopyToast] = React.useState(false);
@@ -37,8 +37,8 @@ const PunchCard = ({ habit, previewMode = false }) => {
     const isCollaborator = user && habit.collaborators?.some(c => c.user_id === user.id);
     const ownerName = isOwner ? 'You' : (habit.creatorName || 'Friend');
 
-    // DEBUG:
-    console.log('PunchCard Debug:', { id: habit.id, title: habit.title, totalSlots, filledSlots, punchCountRaw: habit.punchCount, isComplete });
+
+    // Derived state
 
     const [isPunching, setIsPunching] = useState(false);
 
@@ -186,7 +186,7 @@ const PunchCard = ({ habit, previewMode = false }) => {
                     {user && user.id !== habit.creatorId && !previewMode && (
                         <button
                             onClick={async () => {
-                                if (confirm('Add this habit to your own cards?')) {
+                                if (confirm('Copy and add to your own cards?')) {
                                     const { error } = await copyHabit(habit);
                                     if (error) alert('Error copying: ' + error);
                                     else alert('Added to your cards!');
@@ -260,8 +260,37 @@ const PunchCard = ({ habit, previewMode = false }) => {
 
             {isComplete && !habit.archived && !previewMode && (
                 <div className="completion-banner">
-                    <p>Completed!</p>
-                    <button onClick={() => archiveHabit(habit.id)}>Archive</button>
+                    <div className="banner-content">
+                        <p className="banner-title">{habit.title}</p>
+                        <p className="banner-reward">🏆 {habit.reward || "Completed!"}</p>
+
+                        <button
+                            className="btn-celebrate"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                playSound(habit.sound || 'confetti');
+                                setCelebration({ soundId: habit.sound, reward: habit.reward });
+                            }}
+                        >
+                            <PartyPopper size={20} /> Click to Celebrate!
+                        </button>
+
+                        <button
+                            className="archive-link"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const isCollab = habit.mode === 'collab';
+                                const msg = isCollab
+                                    ? 'Archive this card for everyone? It will move to the Archive tab.'
+                                    : 'Archive this card?';
+                                if (confirm(msg)) {
+                                    archiveHabit(habit.id);
+                                }
+                            }}
+                        >
+                            {habit.mode === 'collab' ? 'Archive for everyone' : 'Archive'}
+                        </button>
+                    </div>
                 </div>
             )}
 

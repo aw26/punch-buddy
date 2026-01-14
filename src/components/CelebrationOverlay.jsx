@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import './CelebrationOverlay.css';
 import { playSound } from '../utils/sound';
 
+import { X } from 'lucide-react';
+
 const CelebrationOverlay = ({ soundId, reward, onClose }) => {
     const [particles, setParticles] = useState([]);
     const [animationType, setAnimationType] = useState('confetti');
@@ -38,12 +40,16 @@ const CelebrationOverlay = ({ soundId, reward, onClose }) => {
             setParticles(newParticles);
         }
 
-        const timer = setTimeout(onClose, 5000);
-        return () => clearTimeout(timer);
-    }, [soundId, onClose]);
+        // Removed auto-close timer so users can enjoy the moment
+        // const timer = setTimeout(onClose, 5000);
+        // return () => clearTimeout(timer);
+    }, [soundId]); // Removed onClose from dependency to avoid re-triggering if it changes
 
     return (
         <div className={`celebration-overlay ${animationType}`} onClick={onClose}>
+            <button className="close-btn" onClick={(e) => { e.stopPropagation(); onClose(); }}>
+                <X size={32} />
+            </button>
             <div className="celebration-content">
                 <h1 className="bounce-in">CONGRATULATIONS!</h1>
                 {reward && (
@@ -87,7 +93,7 @@ const CelebrationOverlay = ({ soundId, reward, onClose }) => {
                     </div>
                 )}
 
-                <p className="tap-to-dismiss">Tap to dismiss</p>
+                <p className="tap-to-dismiss">Tap anywhere to close</p>
             </div>
         </div>
     );

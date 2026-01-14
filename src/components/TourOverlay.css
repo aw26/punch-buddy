@@ -25,7 +25,8 @@
 /* Ensure helpful pointer events for the tooltip */
 .tour-tooltip {
     position: absolute;
-    width: 300px;
+    width: 90vw;
+    max-width: 300px;
     background: white;
     padding: 1rem;
     border-radius: 12px;
@@ -34,6 +35,27 @@
     /* Above highlight */
     animation: fadeIn 0.3s ease;
     border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.tour-close-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 1.2rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.tour-close-btn:hover {
+    color: #333;
 }
 
 .tour-content h4 {
